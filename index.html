@@ -847,11 +847,6 @@
                 </div>
 
                 <div class="legend-item">
-                  <div class="legend-map-button" id="legendDrawIcon"></div>
-                  <div class="legend-text"><strong>Perceel tekenen</strong><br />Teken zelf een polygoon.</div>
-                </div>
-
-                <div class="legend-item">
                   <div class="legend-map-button" id="legendEditIcon"></div>
                   <div class="legend-text"><strong>Perceel bewerken</strong><br />Pas vertices van een selectie aan.</div>
                 </div>
@@ -1806,17 +1801,7 @@
         featureGroup: editableLayers,
         remove: false
       },
-      draw: {
-        polygon: {
-          allowIntersection: false,
-          showArea: true
-        },
-        polyline: false,
-        rectangle: false,
-        circle: false,
-        circlemarker: false,
-        marker: false
-      }
+      draw: false
     });
 
     map.addControl(drawControl);
@@ -1921,7 +1906,6 @@
 
     function syncLegendIcons() {
       injectLegendButton('legendBasemapIcon', '.basemap-toggle', 'legend-basemap-wrap');
-      injectLegendButton('legendDrawIcon', '.leaflet-draw-draw-polygon', 'leaflet-draw-toolbar leaflet-bar');
       injectLegendButton('legendEditIcon', '.leaflet-draw-edit-edit', 'leaflet-draw-toolbar leaflet-bar');
       injectLegendButton('legendSplitIcon', '.split-control a', 'leaflet-bar split-control');
     }
