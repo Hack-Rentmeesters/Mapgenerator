@@ -1,0 +1,2401 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rentmeester Assistent</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    crossorigin=""
+  ></script>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"
+  />
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+  <script src="https://unpkg.com/jsts@2.12.1/dist/jsts.min.js"></script>
+
+  <style>
+    :root {
+      --brand: #426580;
+      --brand-dark: #355267;
+      --brand-soft: #eef3f7;
+      --brand-soft-2: #f6f9fb;
+      --bg: #f3f5f7;
+      --panel: #ffffff;
+      --text: #1f2c36;
+      --text-soft: #667684;
+      --border: #d8e0e6;
+      --border-strong: #c7d1d9;
+      --shadow: 0 10px 28px rgba(34, 52, 67, 0.08);
+      --shadow-soft: 0 4px 14px rgba(34, 52, 67, 0.06);
+      --accent: #426580;
+      --accent-fill: rgba(66, 101, 128, 0.14);
+      --run: #23313d;
+      --run-hover: #18222b;
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background:
+        radial-gradient(circle at top left, #fafbfd 0%, #f3f5f7 45%, #edf1f4 100%);
+      color: var(--text);
+    }
+
+    body {
+      min-height: 100vh;
+    }
+
+    header {
+      top: 0;
+      z-index: 4000;
+      backdrop-filter: blur(10px);
+      background: linear-gradient(135deg, #426580 0%, #355267 100%);
+      border-bottom: 1px solid rgba(255,255,255,0.10);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+    }
+
+    .header-inner {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 16px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .brand-block {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .brand-logo {
+      width: 52px;
+      height: 52px;
+      object-fit: contain;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.12);
+      padding: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.10);
+      flex-shrink: 0;
+    }
+
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 0;
+    }
+
+    .brand-title {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: 0.2px;
+      line-height: 1.1;
+    }
+
+    .header-badge {
+      padding: 9px 14px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.18);
+      font-size: 12px;
+      font-weight: 800;
+      color: #ffffff;
+      white-space: nowrap;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+
+    .page {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      padding: 18px;
+      max-width: 1600px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+    }
+
+    .toolbar {
+      background: rgba(255,255,255,0.96);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+      position: relative;
+      z-index: 5000;
+      box-shadow: var(--shadow);
+    }
+
+    .search-wrap {
+      position: relative;
+      min-width: 360px;
+      flex: 1 1 420px;
+      z-index: 5001;
+    }
+
+    .toolbar-link-wrap {
+      display: flex;
+      align-items: flex-end;
+      flex: 0 0 372px;
+      width: 372px;
+    }
+
+    .toolbar-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 46px;
+      padding: 12px 18px;
+      border-radius: 12px;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      color: #ffffff;
+      background: linear-gradient(to bottom, var(--brand), var(--brand-dark));
+      border: 1px solid var(--brand-dark);
+      box-shadow: 0 10px 20px rgba(66, 101, 128, 0.16);
+      transition: 0.18s ease;
+      white-space: nowrap;
+    }
+
+    .toolbar-link:hover {
+      transform: translateY(-1px);
+      background: linear-gradient(to bottom, var(--brand-dark), #2b4658);
+      box-shadow: 0 12px 22px rgba(66, 101, 128, 0.20);
+    }
+
+    .toolbar label,
+    .field-group label {
+      display: block;
+      margin-bottom: 7px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #2e4354;
+      letter-spacing: 0.15px;
+    }
+
+    .toolbar input[type="text"],
+    .sidebar select {
+      width: 100%;
+      border: 1px solid var(--border-strong);
+      background: #fff;
+      border-radius: 12px;
+      font-size: 14px;
+      color: var(--text);
+      transition: 0.18s ease;
+      outline: none;
+      padding: 12px 14px;
+      min-height: 46px;
+    }
+
+    .toolbar input[type="text"]:focus,
+    .sidebar select:focus {
+      border-color: var(--brand-dark);
+      box-shadow: 0 0 0 4px rgba(66, 101, 128, 0.14);
+    }
+
+    .suggestions {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      right: 0;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 18px 36px rgba(0,0,0,0.14);
+      max-height: 320px;
+      overflow-y: auto;
+      display: none;
+      z-index: 9999;
+      padding: 6px;
+    }
+
+    .suggestion-item {
+      padding: 11px 12px;
+      cursor: pointer;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.35;
+      transition: 0.15s ease;
+    }
+
+    .suggestion-item + .suggestion-item {
+      margin-top: 4px;
+    }
+
+    .suggestion-item:hover,
+    .suggestion-item.active {
+      background: var(--brand-soft-2);
+    }
+
+    .suggestion-type {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 62px;
+      padding: 5px 8px;
+      margin-right: 10px;
+      border-radius: 999px;
+      background: var(--brand-soft);
+      border: 1px solid #d7e2ea;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--brand-dark);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .main {
+      display: grid;
+      grid-template-columns: 1fr 390px;
+      gap: 18px;
+      position: relative;
+      z-index: 1;
+      align-items: start;
+    }
+
+    .left-column {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-width: 0;
+    }
+
+    .right-column {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-width: 0;
+    }
+
+    .map-card,
+    .sidebar,
+    .legend-card {
+      background: rgba(255,255,255,0.96);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .map-card {
+      position: relative;
+      z-index: 1;
+    }
+
+    .sidebar,
+    .legend-card {
+      position: relative;
+      z-index: 1;
+    }
+
+    .map-header,
+    .sidebar-header,
+    .legend-card-header {
+      padding: 14px 16px;
+      background: linear-gradient(to bottom, #f8fafc, #f2f6f9);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .section-title {
+      font-weight: 800;
+      font-size: 15px;
+      color: #243847;
+    }
+
+    #map {
+      width: 100%;
+      height: 80vh;
+      min-height: 600px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .leaflet-container {
+      z-index: 1 !important;
+      background: #dfe7ed;
+    }
+
+    .leaflet-pane,
+    .leaflet-top,
+    .leaflet-bottom,
+    .leaflet-control-container,
+    .leaflet-control {
+      z-index: 2 !important;
+    }
+
+    .sidebar-content,
+    .legend-card-content {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      background: linear-gradient(to bottom, rgba(255,255,255,0.85), rgba(249,251,252,1));
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .stat-card {
+      background: #f9fbfc;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: var(--shadow-soft);
+      min-width: 0;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-soft);
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text);
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    .info-box {
+      background: #f9fbfc;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      font-size: 14px;
+      line-height: 1.55;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .parcel-list {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: none;
+    }
+
+    .parcel-list-title {
+      font-weight: 800;
+      margin-bottom: 8px;
+      color: #2a3f50;
+    }
+
+    .parcel-items {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .parcel-items li {
+      margin-bottom: 5px;
+      color: #314655;
+    }
+
+    .parcel-empty {
+      color: var(--text-soft);
+      font-style: italic;
+    }
+
+    .button-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .sidebar button {
+      min-height: 46px;
+      padding: 11px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border-strong);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: 0.18s ease;
+      background: #fff;
+      color: #243847;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .sidebar button:hover {
+      transform: translateY(-1px);
+      background: #f7fafc;
+      border-color: #b9c8d3;
+    }
+
+    .run-btn {
+      width: 100%;
+      background: linear-gradient(to bottom, var(--run), #18222b) !important;
+      color: white !important;
+      border: 1px solid var(--run) !important;
+      font-weight: 800 !important;
+      letter-spacing: 0.4px;
+      box-shadow: 0 8px 18px rgba(35, 49, 61, 0.18) !important;
+    }
+
+    .run-btn:hover {
+      background: linear-gradient(to bottom, var(--run-hover), #101820) !important;
+      border-color: var(--run-hover) !important;
+      color: white !important;
+    }
+
+    .legend-box {
+      background: #f8fbfd;
+      border: 1px dashed #cfd9e0;
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .legend-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--text-soft);
+      line-height: 1.4;
+    }
+
+    .legend-map-button {
+      width: 30px;
+      min-width: 30px;
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .legend-map-button .leaflet-bar,
+    .legend-map-button .leaflet-draw-toolbar {
+      margin: 0;
+      box-shadow: none;
+      border: none;
+      background: transparent;
+    }
+
+    .legend-map-button a {
+      pointer-events: none;
+      margin: 0;
+    }
+
+    .legend-map-button .leaflet-draw-toolbar a,
+    .legend-map-button .leaflet-draw-toolbar a:hover {
+      text-indent: -9999px !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      font-size: 0 !important;
+      color: transparent !important;
+    }
+
+    .legend-map-button .legend-control-clone {
+      display: block;
+    }
+
+    .legend-map-button .legend-basemap-wrap {
+      width: 30px;
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .legend-map-button .legend-basemap-wrap .basemap-toggle {
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: none;
+      border-radius: 4px;
+      font-size: 18px;
+      cursor: default;
+      pointer-events: none;
+      margin: 0;
+    }
+
+    .legend-text strong {
+      color: #2f4657;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .site-footer {
+      margin-top: 24px;
+      background: linear-gradient(180deg, rgba(66, 101, 128, 0.98), rgba(53, 82, 103, 0.98));
+      border-top: 1px solid rgba(255,255,255,0.08);
+      color: #ffffff;
+      box-shadow: 0 -6px 18px rgba(0,0,0,0.05);
+    }
+
+    .footer-inner {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 22px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .footer-left {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .footer-title {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+    }
+
+    .footer-text {
+      font-size: 13px;
+      color: rgba(255,255,255,0.82);
+      line-height: 1.5;
+    }
+
+    .footer-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .footer-link {
+      color: #ffffff;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.16);
+      transition: 0.18s ease;
+    }
+
+    .footer-link:hover {
+      background: rgba(255,255,255,0.18);
+      border-color: rgba(255,255,255,0.24);
+    }
+
+    .footer-bottom {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 0 24px 20px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.72);
+    }
+
+    .split-control a {
+      font: bold 18px/30px Arial, Helvetica, sans-serif;
+      text-align: center;
+      color: #243847;
+    }
+
+    .split-control a.active {
+      background: #426580;
+      color: #fff;
+    }
+
+    .basemap-control {
+      position: relative;
+    }
+
+    .basemap-toggle {
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      color: #243847;
+      border-radius: 4px;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.35);
+      cursor: pointer;
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1;
+      user-select: none;
+    }
+
+    .basemap-toggle:hover {
+      background: #f4f7fa;
+    }
+
+    .basemap-menu {
+      position: absolute;
+      top: 40px;
+      right: 0;
+      min-width: 150px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 12px 26px rgba(0,0,0,0.14);
+      padding: 8px;
+      display: none;
+    }
+
+    .basemap-menu.open {
+      display: block;
+    }
+
+    .basemap-option {
+      width: 100%;
+      border: none;
+      background: transparent;
+      text-align: left;
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 700;
+      color: #243847;
+    }
+
+    .basemap-option:hover {
+      background: #f4f7fa;
+    }
+
+    .basemap-option.active {
+      background: rgba(66, 101, 128, 0.12);
+      color: var(--brand-dark);
+    }
+
+    @media (max-width: 1200px) {
+      .main {
+        grid-template-columns: 1fr;
+      }
+
+      #map {
+        height: 62vh;
+        min-height: 500px;
+      }
+
+      .toolbar-link-wrap {
+        flex: 1 1 100%;
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 700px) {
+      .page {
+        padding: 12px;
+      }
+
+      .toolbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .search-wrap {
+        min-width: unset;
+        width: 100%;
+      }
+
+      .toolbar-link-wrap {
+        width: 100%;
+      }
+
+      .toolbar-link {
+        width: 100%;
+      }
+
+      .header-inner {
+        padding: 16px;
+      }
+
+      .brand-logo {
+        width: 44px;
+        height: 44px;
+        padding: 5px;
+      }
+
+      .brand-title {
+        font-size: 24px;
+      }
+
+      .stats-grid,
+      .button-row {
+        grid-template-columns: 1fr;
+      }
+
+      .footer-inner,
+      .footer-bottom {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+
+      .footer-inner {
+        align-items: flex-start;
+      }
+
+      .footer-right {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div class="brand-block">
+        <img src="logo.png" alt="De Rentmeester Assistent logo" class="brand-logo" />
+        <div class="brand-text">
+          <h1 class="brand-title">Rentmeester Assistent</h1>
+        </div>
+      </div>
+      <div class="header-badge">Mapgenerator</div>
+    </div>
+  </header>
+
+  <div class="page">
+    <div class="toolbar">
+      <div class="search-wrap">
+        <label for="addressInput">Zoek op adres of perceelcode</label>
+        <input
+          type="text"
+          id="addressInput"
+          placeholder="Bijvoorbeeld: Markt 1, Den Bosch of Boxmeer R 599"
+          autocomplete="off"
+        />
+        <div id="suggestions" class="suggestions"></div>
+      </div>
+
+      <div class="toolbar-link-wrap">
+        <a href="help.html" class="toolbar-link">Stappenplan</a>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="left-column">
+        <div class="map-card">
+          <div class="map-header">
+            <div class="section-title">Kaart</div>
+          </div>
+          <div id="map"></div>
+        </div>
+      </div>
+
+      <div class="right-column">
+        <div class="legend-card">
+          <div class="legend-card-header">
+            <div class="section-title">Legenda</div>
+          </div>
+          <div class="legend-card-content">
+            <div class="legend-box">
+              <div class="legend-list">
+                <div class="legend-item">
+                  <div class="legend-map-button" id="legendBasemapIcon"></div>
+                  <div class="legend-text"><strong>Lagen</strong><br />Wissel eenvoudig tussen de topografische kaart en de actuele luchtfoto.</div>
+                </div>
+
+                <div class="legend-item">
+                  <div class="legend-map-button" id="legendDrawIcon"></div>
+                  <div class="legend-text"><strong>Perceel tekenen</strong><br />Teken zelf een polygoon.</div>
+                </div>
+
+                <div class="legend-item">
+                  <div class="legend-map-button" id="legendEditIcon"></div>
+                  <div class="legend-text"><strong>Perceel bewerken</strong><br />Pas vertices van een selectie aan.</div>
+                </div>
+
+                <div class="legend-item">
+                  <div class="legend-map-button" id="legendSplitIcon"></div>
+                  <div class="legend-text"><strong>Perceel splitsen</strong><br />Splits één of meerdere geselecteerde vlakken.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="sidebar">
+          <div class="sidebar-header">
+            <div class="section-title">Instellingen</div>
+          </div>
+
+          <div class="sidebar-content">
+            <div class="field-group hidden" id="clusterGroup">
+              <label for="clusterChoice">Weergave meerdere percelen</label>
+              <select id="clusterChoice">
+                <option value="">-- Kies een optie --</option>
+                <option value="ja">Alle geselecteerde percelen op één tekening</option>
+                <option value="nee">Elk perceel op een aparte tekening</option>
+              </select>
+            </div>
+
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-label">Oppervlakte m²</div>
+                <div class="stat-value" id="areaM2">-</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Oppervlakte ha</div>
+                <div class="stat-value" id="areaHa">-</div>
+              </div>
+            </div>
+
+            <div class="info-box">
+              <div class="parcel-list">
+                <div class="parcel-list-title">Geselecteerde percelen</div>
+                <div id="selectedParcelCodes" class="parcel-empty">Geen percelen geselecteerd</div>
+              </div>
+            </div>
+
+            <div class="button-row">
+              <button id="clearSelectionBtn">Wis selectie</button>
+              <button id="runBtn" class="run-btn">RUN</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <div class="footer-title">Rentmeester Assistent</div>
+        <div class="footer-text">
+          Slimme ondersteuning voor kaartselectie, perceelinformatie en GeoJSON-output.
+        </div>
+      </div>
+
+      <div class="footer-right">
+        <a href="contact.html" class="footer-link">Contact</a>
+        <a href="help.html" class="footer-link">Help</a>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      © 2026 Rentmeester Assistent. Alle rechten voorbehouden.
+    </div>
+  </footer>
+
+  <script>
+    const PDOK_SUGGEST_URL = 'https://api.pdok.nl/bzk/locatieserver/search/v3_1/suggest';
+    const PDOK_LOOKUP_URL = 'https://api.pdok.nl/bzk/locatieserver/search/v3_1/lookup';
+    const WFS_BASE = 'https://service.pdok.nl/kadaster/kadastralekaart/wfs/v5_0';
+    const PARCELS_MIN_ZOOM = 15;
+
+    const WFS_TYPENAMES = [
+      'kadastralekaart:Perceel',
+      'Perceel',
+      'kadastralekaartv5:Perceel',
+      'kadastralekaartv5:perceel',
+      'perceel'
+    ];
+
+    const map = L.map('map', {
+      zoomControl: true,
+      maxZoom: 22
+    }).setView([52.14, 5.29], 7);
+
+    const topoLayer = L.tileLayer(
+      'https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+      {
+        maxZoom: 22,
+        maxNativeZoom: 19,
+        attribution: 'Topografische kaart'
+      }
+    );
+
+    const imageryLayer = L.tileLayer(
+      'https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/OGC:1.0:GoogleMapsCompatible/{z}/{x}/{y}.jpeg',
+      {
+        attribution: 'Luchtfoto PDOK actueel',
+        maxZoom: 22,
+        maxNativeZoom: 21,
+        noWrap: true
+      }
+    );
+
+    const baseMaps = {
+      Topografisch: topoLayer,
+      Luchtfoto: imageryLayer
+    };
+
+    let currentBaseLayerName = 'Topografisch';
+    let currentBaseLayer = topoLayer;
+
+    currentBaseLayer.addTo(map);
+
+    function setBaseLayer(name) {
+      if (!baseMaps[name]) return;
+      if (currentBaseLayerName === name) return;
+
+      if (map.hasLayer(currentBaseLayer)) {
+        map.removeLayer(currentBaseLayer);
+      }
+
+      currentBaseLayer = baseMaps[name];
+      currentBaseLayer.addTo(map);
+      currentBaseLayerName = name;
+
+      updateParcelLayerStyle();
+      updateBasemapMenuActiveState();
+    }
+
+    function getParcelBoundaryColor() {
+      return currentBaseLayerName === 'Luchtfoto' ? '#ffffff' : '#426580';
+    }
+
+    function getParcelLayerStyle() {
+      return {
+        color: getParcelBoundaryColor(),
+        weight: 1.5,
+        fillColor: '#426580',
+        fillOpacity: 0.08
+      };
+    }
+
+    const parcelLayer = L.geoJSON(null, {
+      style: getParcelLayerStyle
+    }).addTo(map);
+
+    const editableLayers = new L.FeatureGroup();
+    map.addLayer(editableLayers);
+
+    let basemapMenuEl = null;
+
+    function updateBasemapMenuActiveState() {
+      if (!basemapMenuEl) return;
+      const options = basemapMenuEl.querySelectorAll('.basemap-option');
+      options.forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.layer === currentBaseLayerName);
+      });
+    }
+
+    const BasemapControl = L.Control.extend({
+      options: {
+        position: 'topright'
+      },
+      onAdd: function () {
+        const container = L.DomUtil.create('div', 'leaflet-control basemap-control');
+        const toggle = L.DomUtil.create('div', 'basemap-toggle', container);
+        toggle.innerHTML = '☰';
+        toggle.title = 'Basemap kiezen';
+
+        const menu = L.DomUtil.create('div', 'basemap-menu', container);
+        basemapMenuEl = menu;
+
+        const topoBtn = L.DomUtil.create('button', 'basemap-option', menu);
+        topoBtn.type = 'button';
+        topoBtn.dataset.layer = 'Topografisch';
+        topoBtn.textContent = 'Topografisch';
+
+        const imgBtn = L.DomUtil.create('button', 'basemap-option', menu);
+        imgBtn.type = 'button';
+        imgBtn.dataset.layer = 'Luchtfoto';
+        imgBtn.textContent = 'Luchtfoto';
+
+        function toggleMenu() {
+          menu.classList.toggle('open');
+          updateBasemapMenuActiveState();
+        }
+
+        function closeMenu() {
+          menu.classList.remove('open');
+        }
+
+        L.DomEvent.disableClickPropagation(container);
+        L.DomEvent.disableScrollPropagation(container);
+
+        L.DomEvent.on(toggle, 'click', function (e) {
+          L.DomEvent.stop(e);
+          toggleMenu();
+        });
+
+        L.DomEvent.on(topoBtn, 'click', function (e) {
+          L.DomEvent.stop(e);
+          setBaseLayer('Topografisch');
+          closeMenu();
+        });
+
+        L.DomEvent.on(imgBtn, 'click', function (e) {
+          L.DomEvent.stop(e);
+          setBaseLayer('Luchtfoto');
+          closeMenu();
+        });
+
+        setTimeout(updateBasemapMenuActiveState, 0);
+
+        return container;
+      }
+    });
+
+    map.addControl(new BasemapControl());
+
+    map.on('click', function () {
+      if (basemapMenuEl) {
+        basemapMenuEl.classList.remove('open');
+      }
+    });
+
+    let lastSuggestResults = [];
+    let highlightedSuggestionIndex = -1;
+    let refreshTimeout = null;
+    let isDrawing = false;
+    let splitModeActive = false;
+    let splitDrawer = null;
+    let splitControlButton = null;
+    let uniqueSelectionCounter = 0;
+
+    const selectedFeatureKeys = new Set();
+
+    const addressInputEl = document.getElementById('addressInput');
+    const suggestionsEl = document.getElementById('suggestions');
+    const areaM2El = document.getElementById('areaM2');
+    const areaHaEl = document.getElementById('areaHa');
+    const runBtn = document.getElementById('runBtn');
+    const selectedParcelCodesEl = document.getElementById('selectedParcelCodes');
+    const clusterGroupEl = document.getElementById('clusterGroup');
+    const clusterChoiceEl = document.getElementById('clusterChoice');
+
+    function createUniqueSelectionKey() {
+      uniqueSelectionCounter += 1;
+      return `sel_${Date.now()}_${uniqueSelectionCounter}_${Math.random().toString(36).slice(2, 8)}`;
+    }
+
+    function updateParcelLayerStyle() {
+      parcelLayer.setStyle(getParcelLayerStyle());
+      try {
+        editableLayers.bringToFront();
+      } catch (err) {}
+    }
+
+    function formatNumberNL(value, decimals = 2) {
+      return new Intl.NumberFormat('nl-NL', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+      }).format(value);
+    }
+
+    function formatAreaToHaACa(areaM2) {
+      const totalCa = Math.round(areaM2);
+      const ha = Math.floor(totalCa / 10000);
+      const remainderAfterHa = totalCa % 10000;
+      const a = Math.floor(remainderAfterHa / 100);
+      const ca = remainderAfterHa % 100;
+
+      return `${String(ha).padStart(2, '0')}.${String(a).padStart(2, '0')}.${String(ca).padStart(2, '0')}`;
+    }
+
+    function debounce(fn, delay) {
+      let timer = null;
+      return function (...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(this, args), delay);
+      };
+    }
+
+    function getLayerFeature(layer) {
+      if (!layer) return null;
+
+      const liveGeoJson = layer.toGeoJSON();
+
+      if (liveGeoJson.type === 'Feature') {
+        return {
+          type: 'Feature',
+          properties: {
+            ...(layer.feature?.properties || {}),
+            ...(liveGeoJson.properties || {})
+          },
+          geometry: liveGeoJson.geometry
+        };
+      }
+
+      if (liveGeoJson.type === 'FeatureCollection' && liveGeoJson.features.length) {
+        const firstFeature = liveGeoJson.features[0];
+        return {
+          type: 'Feature',
+          properties: {
+            ...(layer.feature?.properties || {}),
+            ...(firstFeature.properties || {})
+          },
+          geometry: firstFeature.geometry
+        };
+      }
+
+      return {
+        type: 'Feature',
+        properties: { ...(layer.feature?.properties || {}) },
+        geometry: liveGeoJson.geometry || liveGeoJson
+      };
+    }
+
+    function syncLayerFeatureGeometry(layer) {
+      if (!layer) return;
+
+      const feature = getLayerFeature(layer);
+
+      if (!layer.feature) {
+        layer.feature = feature;
+        return;
+      }
+
+      layer.feature.type = 'Feature';
+      layer.feature.properties = {
+        ...(layer.feature.properties || {}),
+        ...(feature.properties || {})
+      };
+      layer.feature.geometry = feature.geometry;
+    }
+
+    function getFeatureKey(feature) {
+      const props = feature.properties || {};
+      return (
+        props._selectionKey ||
+        props.id ||
+        props.gml_id ||
+        props.kadastraleAanduiding ||
+        props.kadastraleaanduiding ||
+        props.perceelnummer ||
+        JSON.stringify(feature.geometry)
+      );
+    }
+
+    function getSelectedFeatureCollection() {
+      const features = [];
+      editableLayers.eachLayer(layer => {
+        const feature = getLayerFeature(layer);
+        if (feature) features.push(feature);
+      });
+
+      return {
+        type: 'FeatureCollection',
+        features
+      };
+    }
+
+    function getSelectedLayersArray() {
+      const layers = [];
+      editableLayers.eachLayer(layer => {
+        layers.push(layer);
+      });
+      return layers;
+    }
+
+    function getSelectedPolygonLayers() {
+      const layers = [];
+
+      editableLayers.eachLayer(layer => {
+        const feature = getLayerFeature(layer);
+
+        if (!feature || !feature.geometry) return;
+
+        if (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon') {
+          layers.push(layer);
+        }
+      });
+
+      return layers;
+    }
+
+    function getClusterChoiceForExport(count) {
+      if (count > 1) {
+        return clusterChoiceEl.value || '';
+      }
+      return 'nee';
+    }
+
+    function getIsClusterForExport(count) {
+      if (count > 1) {
+        return clusterChoiceEl.value === 'ja';
+      }
+      return false;
+    }
+
+    function isPartialParcel(feature) {
+      return !!feature?.properties?._partialParcel;
+    }
+
+    function getPerceelDeelLabel(feature) {
+      return isPartialParcel(feature) ? 'gedeeltelijk' : 'geheel';
+    }
+
+    function getCleanExportProperties(feature, count, area) {
+      const props = { ...(feature.properties || {}) };
+
+      delete props._selectionKey;
+      delete props._splitPart;
+      delete props._drawnPolygon;
+      delete props._partialParcel;
+      delete props.oppervlakte_m2;
+      delete props.is_cluster;
+      delete props.cluster_keuze;
+      delete props.perceel_deel;
+      delete props.is_gedeeltelijk;
+
+      return {
+        ...props,
+        oppervlakte_m2: area,
+        is_cluster: getIsClusterForExport(count),
+        cluster_keuze: getClusterChoiceForExport(count),
+        perceel_deel: getPerceelDeelLabel(feature),
+        is_gedeeltelijk: isPartialParcel(feature)
+      };
+    }
+
+    function getExportFeatureCollection() {
+      const rawFc = getSelectedFeatureCollection();
+      const count = rawFc.features.length;
+
+      let totalArea = 0;
+      const exportFeatures = rawFc.features.map(feature => {
+        let area = 0;
+        try {
+          area = Math.round(turf.area(feature));
+        } catch (err) {
+          area = 0;
+        }
+        totalArea += area;
+
+        return {
+          type: 'Feature',
+          properties: getCleanExportProperties(feature, count, area),
+          geometry: feature.geometry
+        };
+      });
+
+      return {
+        type: 'FeatureCollection',
+        is_cluster: getIsClusterForExport(count),
+        cluster_keuze: getClusterChoiceForExport(count),
+        aantal_objecten: count,
+        totale_oppervlakte_m2: totalArea,
+        features: exportFeatures
+      };
+    }
+
+    function isDrawnPolygonFeature(feature) {
+      const props = feature?.properties || {};
+
+      if (props._drawnPolygon) return true;
+
+      const hasParcelInfo =
+        props.kadastraleAanduiding ||
+        props.kadastraleaanduiding ||
+        props.perceelnummer ||
+        props.kadastraalperceelnummer ||
+        props.kadastraalPerceelnummer ||
+        props.sectie ||
+        props.kadastralesectie ||
+        props.kadastraleSectie ||
+        props.kadastralegemeentenaam ||
+        props.kadastralegemeente ||
+        props.gemeentenaam ||
+        props.kadastraleGemeenteWaarde ||
+        props.kadastraleGemeenteNaam;
+
+      return !hasParcelInfo;
+    }
+
+    function getParcelCodeFromFeature(feature) {
+      const props = feature?.properties || {};
+
+      if (isDrawnPolygonFeature(feature)) {
+        return 'Getekende polygoon';
+      }
+
+      const gemeente =
+        props.kadastralegemeentenaam ||
+        props.kadastraleGemeenteNaam ||
+        props.kadastraleGemeenteWaarde ||
+        props.gemeentenaam ||
+        props.gemeente ||
+        props.naam ||
+        props.kadastralegemeente ||
+        props.kadas_gemeente ||
+        '';
+
+      const sectie =
+        props.sectie ||
+        props.kadastralesectie ||
+        props.kadastraleSectie ||
+        props.kadas_sectie ||
+        '';
+
+      const perceelnummer =
+        props.perceelnummer ||
+        props.kadastraalperceelnummer ||
+        props.kadastraalPerceelnummer ||
+        props.kadas_perceelnummer ||
+        '';
+
+      let label = '';
+
+      if (gemeente && sectie && perceelnummer) {
+        label = `${gemeente} ${sectie} ${perceelnummer}`;
+      } else {
+        label =
+          props.kadastraleAanduiding ||
+          props.kadastraleaanduiding ||
+          props.label ||
+          'Onbekend perceel';
+      }
+
+      if (props._partialParcel) {
+        return `${label} Gedeeltelijk`;
+      }
+
+      return label;
+    }
+
+    function updateSelectedParcelCodes(features) {
+      if (!features.length) {
+        selectedParcelCodesEl.className = 'parcel-empty';
+        selectedParcelCodesEl.innerHTML = 'Geen percelen geselecteerd';
+        return;
+      }
+
+      selectedParcelCodesEl.className = '';
+      selectedParcelCodesEl.innerHTML = `
+        <ul class="parcel-items">
+          ${features.map(feature => `<li>${getParcelCodeFromFeature(feature)}</li>`).join('')}
+        </ul>
+      `;
+    }
+
+    function updateClusterFieldVisibility(count) {
+      if (count > 1) {
+        clusterGroupEl.classList.remove('hidden');
+      } else {
+        clusterGroupEl.classList.add('hidden');
+        clusterChoiceEl.value = '';
+      }
+    }
+
+    function updateInfoFromSelection() {
+      const fc = getSelectedFeatureCollection();
+      const count = fc.features.length;
+
+      updateClusterFieldVisibility(count);
+
+      if (!count) {
+        areaM2El.textContent = '-';
+        areaHaEl.textContent = '-';
+        updateSelectedParcelCodes([]);
+        return;
+      }
+
+      let totalArea = 0;
+      for (const feature of fc.features) {
+        try {
+          totalArea += turf.area(feature);
+        } catch (err) {}
+      }
+
+      areaM2El.textContent = formatNumberNL(Math.round(totalArea), 0);
+      areaHaEl.textContent = formatAreaToHaACa(totalArea);
+      updateSelectedParcelCodes(fc.features);
+    }
+
+    function showSuggestions(items) {
+      suggestionsEl.innerHTML = '';
+      highlightedSuggestionIndex = -1;
+
+      if (!items || !items.length) {
+        suggestionsEl.style.display = 'none';
+        return;
+      }
+
+      items.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.className = 'suggestion-item';
+
+        const typeLabel = item.resultType === 'perceel' ? 'Perceel' : 'Adres';
+        const label = item.weergavenaam || item.id || 'Onbekend resultaat';
+
+        div.innerHTML = `<span class="suggestion-type">${typeLabel}</span>${label}`;
+        div.addEventListener('click', () => chooseSuggestion(index));
+        suggestionsEl.appendChild(div);
+      });
+
+      suggestionsEl.style.display = 'block';
+    }
+
+    function hideSuggestions() {
+      suggestionsEl.style.display = 'none';
+    }
+
+    function updateSuggestionHighlight() {
+      const items = suggestionsEl.querySelectorAll('.suggestion-item');
+      items.forEach((el, idx) => {
+        el.classList.toggle('active', idx === highlightedSuggestionIndex);
+      });
+    }
+
+    function clearEditableLayers() {
+      editableLayers.clearLayers();
+      selectedFeatureKeys.clear();
+      deactivateSplitMode();
+      updateInfoFromSelection();
+    }
+
+    function removeSelectedFeatureByKey(key) {
+      let layerToRemove = null;
+
+      editableLayers.eachLayer(layer => {
+        if (layerToRemove) return;
+        const feature = getLayerFeature(layer);
+        const layerKey = getFeatureKey(feature);
+        if (layerKey === key) {
+          layerToRemove = layer;
+        }
+      });
+
+      if (layerToRemove) {
+        editableLayers.removeLayer(layerToRemove);
+        selectedFeatureKeys.delete(key);
+        updateInfoFromSelection();
+        return true;
+      }
+
+      return false;
+    }
+
+    function getSelectionStyle() {
+      return {
+        color: '#1f78ff',
+        weight: 3,
+        fillColor: '#7fb3ff',
+        fillOpacity: 0.2
+      };
+    }
+
+    function toggleFeatureSelection(feature) {
+      const selectedFeature = {
+        type: 'Feature',
+        properties: {
+          ...(feature.properties || {}),
+          _selectionKey: createUniqueSelectionKey()
+        },
+        geometry: feature.geometry
+      };
+
+      const key = getFeatureKey(selectedFeature);
+
+      const layer = L.geoJSON(selectedFeature, {
+        style: getSelectionStyle()
+      });
+
+      const onlyLayer = layer.getLayers()[0];
+      if (!onlyLayer) return false;
+
+      onlyLayer.feature = selectedFeature;
+      editableLayers.addLayer(onlyLayer);
+      selectedFeatureKeys.add(key);
+      updateInfoFromSelection();
+
+      try {
+        editableLayers.bringToFront();
+      } catch (err) {}
+
+      return true;
+    }
+
+    function addDrawnLayerToSelection(layer) {
+      const feature = getLayerFeature(layer);
+
+      if (!layer.feature) {
+        layer.feature = {
+          type: 'Feature',
+          properties: {},
+          geometry: feature.geometry
+        };
+      }
+
+      if (!layer.feature.properties) {
+        layer.feature.properties = {};
+      }
+
+      layer.feature.properties._drawnPolygon = true;
+      layer.feature.properties._selectionKey = createUniqueSelectionKey();
+
+      syncLayerFeatureGeometry(layer);
+
+      const key = getFeatureKey(getLayerFeature(layer));
+
+      if (layer.setStyle) {
+        layer.setStyle(getSelectionStyle());
+      }
+
+      editableLayers.addLayer(layer);
+      selectedFeatureKeys.add(key);
+
+      layer.on('click', function (evt) {
+        if (isDrawing || splitModeActive) return;
+        L.DomEvent.stopPropagation(evt);
+        removeSelectedFeatureByKey(getFeatureKey(getLayerFeature(layer)));
+      });
+
+      updateInfoFromSelection();
+
+      try {
+        editableLayers.bringToFront();
+      } catch (err) {}
+
+      return true;
+    }
+
+    function findSelectedLayerAtLatLng(latlng) {
+      let found = null;
+      const pt = turf.point([latlng.lng, latlng.lat]);
+
+      editableLayers.eachLayer(layer => {
+        if (found) return;
+        const feature = getLayerFeature(layer);
+        if (!feature || !feature.geometry) return;
+
+        try {
+          const type = feature.geometry.type;
+          if ((type === 'Polygon' || type === 'MultiPolygon') && turf.booleanPointInPolygon(pt, feature)) {
+            found = {
+              layer,
+              feature,
+              key: getFeatureKey(feature)
+            };
+          }
+        } catch (err) {}
+      });
+
+      return found;
+    }
+
+    function downloadTextFile(filename, text) {
+      const blob = new Blob([text], { type: 'application/geo+json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function getCurrentFeatureName() {
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mi = String(now.getMinutes()).padStart(2, '0');
+      return `rentmeester_assistent_${yyyy}${mm}${dd}_${hh}${mi}.geojson`;
+    }
+
+    function getCurrentGeojsonText() {
+      return JSON.stringify(getExportFeatureCollection(), null, 2);
+    }
+
+    function downloadCurrentGeojson() {
+      const text = getCurrentGeojsonText();
+      downloadTextFile(getCurrentFeatureName(), text);
+    }
+
+    function getMapBbox4326() {
+      const b = map.getBounds();
+      return {
+        minx: b.getWest(),
+        miny: b.getSouth(),
+        maxx: b.getEast(),
+        maxy: b.getNorth()
+      };
+    }
+
+    function pointFeature(lat, lng) {
+      return turf.point([lng, lat]);
+    }
+
+    function findContainingParcel(featureCollection, latlng) {
+      if (!featureCollection || !featureCollection.features || !featureCollection.features.length) {
+        return null;
+      }
+
+      const pt = pointFeature(latlng.lat, latlng.lng);
+
+      for (const feature of featureCollection.features) {
+        try {
+          if (
+            feature.geometry &&
+            (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon') &&
+            turf.booleanPointInPolygon(pt, feature)
+          ) {
+            return feature;
+          }
+        } catch (err) {}
+      }
+
+      return featureCollection.features[0];
+    }
+
+    function extractLatLngFromLookup(detail) {
+      let lat = null;
+      let lng = null;
+
+      if (detail && detail.centroide_ll) {
+        const match = detail.centroide_ll.match(/POINT\(([-0-9.]+)\s+([-0-9.]+)\)/i);
+        if (match) {
+          lng = parseFloat(match[1]);
+          lat = parseFloat(match[2]);
+        }
+      }
+
+      return (lat !== null && lng !== null) ? { lat, lng } : null;
+    }
+
+    async function fetchWfsByBbox(typeName, bboxObj) {
+      const params = new URLSearchParams({
+        service: 'WFS',
+        request: 'GetFeature',
+        version: '2.0.0',
+        typeNames: typeName,
+        outputFormat: 'application/json',
+        srsName: 'EPSG:4326',
+        bbox: `${bboxObj.miny},${bboxObj.minx},${bboxObj.maxy},${bboxObj.maxx},EPSG:4326`
+      });
+
+      const res = await fetch(`${WFS_BASE}?${params.toString()}`);
+      if (!res.ok) {
+        throw new Error(`WFS fout (${res.status})`);
+      }
+
+      const data = await res.json();
+      if (!data || !Array.isArray(data.features)) {
+        throw new Error('Geen geldige GeoJSON response');
+      }
+
+      return data;
+    }
+
+    async function fetchParcelFeaturesInView() {
+      const bbox = getMapBbox4326();
+      let lastError = null;
+
+      for (const typeName of WFS_TYPENAMES) {
+        try {
+          const data = await fetchWfsByBbox(typeName, bbox);
+          if (data.features && data.features.length) {
+            return data;
+          }
+        } catch (err) {
+          lastError = err;
+        }
+      }
+
+      if (lastError) throw lastError;
+      return { type: 'FeatureCollection', features: [] };
+    }
+
+    async function refreshParcelLayer() {
+      const currentZoom = map.getZoom();
+
+      if (currentZoom < PARCELS_MIN_ZOOM) {
+        parcelLayer.clearLayers();
+        return;
+      }
+
+      try {
+        const data = await fetchParcelFeaturesInView();
+        parcelLayer.clearLayers();
+        parcelLayer.addData(data);
+        updateParcelLayerStyle();
+
+        try {
+          editableLayers.bringToFront();
+        } catch (err) {}
+      } catch (err) {
+        console.error(err);
+        parcelLayer.clearLayers();
+      }
+    }
+
+    async function toggleParcelAtLatLng(latlng, zoomAfterSelect = false) {
+      try {
+        const selectedObject = findSelectedLayerAtLatLng(latlng);
+        if (selectedObject) {
+          removeSelectedFeatureByKey(selectedObject.key);
+          return;
+        }
+
+        let data = parcelLayer.toGeoJSON();
+
+        if (!data.features || !data.features.length) {
+          data = await fetchParcelFeaturesInView();
+        }
+
+        const feature = findContainingParcel(data, latlng);
+
+        if (!feature) {
+          return;
+        }
+
+        const wasAdded = toggleFeatureSelection(feature);
+
+        if (zoomAfterSelect && wasAdded) {
+          const tempLayer = L.geoJSON(feature);
+          const onlyLayer = tempLayer.getLayers()[0];
+          if (onlyLayer && onlyLayer.getBounds) {
+            map.fitBounds(onlyLayer.getBounds(), { maxZoom: 20, padding: [20, 20] });
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    const drawControl = new L.Control.Draw({
+      edit: {
+        featureGroup: editableLayers,
+        remove: false
+      },
+      draw: {
+        polygon: {
+          allowIntersection: false,
+          showArea: true
+        },
+        polyline: false,
+        rectangle: false,
+        circle: false,
+        circlemarker: false,
+        marker: false
+      }
+    });
+
+    map.addControl(drawControl);
+
+    function updateSplitButtonVisual() {
+      if (!splitControlButton) return;
+
+      if (splitModeActive) {
+        splitControlButton.classList.add('active');
+        splitControlButton.title = 'Splitmodus actief';
+      } else {
+        splitControlButton.classList.remove('active');
+        splitControlButton.title = 'Splits geselecteerde percelen';
+      }
+    }
+
+    function deactivateSplitMode() {
+      splitModeActive = false;
+
+      if (splitDrawer) {
+        try {
+          splitDrawer.disable();
+        } catch (err) {}
+        splitDrawer = null;
+      }
+
+      updateSplitButtonVisual();
+    }
+
+    function activateSplitMode() {
+      const targetLayers = getSelectedPolygonLayers();
+
+      if (!targetLayers.length) {
+        alert('Selecteer eerst minimaal één perceel of polygoon om te splitsen.');
+        return;
+      }
+
+      splitModeActive = true;
+      updateSplitButtonVisual();
+
+      splitDrawer = new L.Draw.Polyline(map, {
+        shapeOptions: {
+          color: '#d12f2f',
+          weight: 4,
+          opacity: 0.9
+        },
+        repeatMode: false
+      });
+
+      splitDrawer.enable();
+    }
+
+    const SplitControl = L.Control.extend({
+      options: {
+        position: 'topleft'
+      },
+      onAdd: function () {
+        const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control split-control');
+        const link = L.DomUtil.create('a', '', container);
+        link.href = '#';
+        link.innerHTML = '✂';
+        link.title = 'Splits geselecteerde percelen';
+        splitControlButton = link;
+        updateSplitButtonVisual();
+
+        L.DomEvent.disableClickPropagation(container);
+        L.DomEvent.on(link, 'click', function (e) {
+          L.DomEvent.stop(e);
+          if (splitModeActive) {
+            deactivateSplitMode();
+          } else {
+            activateSplitMode();
+          }
+        });
+
+        return container;
+      }
+    });
+
+    map.addControl(new SplitControl());
+
+    function injectLegendButton(targetId, selector, wrapperClassName) {
+      const target = document.getElementById(targetId);
+      if (!target) return;
+
+      target.innerHTML = '';
+
+      const source = document.querySelector(selector);
+      if (!source) return;
+
+      const wrapper = document.createElement('div');
+      wrapper.className = wrapperClassName;
+
+      const clone = source.cloneNode(true);
+      clone.removeAttribute('href');
+      clone.setAttribute('tabindex', '-1');
+      clone.classList.add('legend-control-clone');
+
+      wrapper.appendChild(clone);
+      target.appendChild(wrapper);
+    }
+
+    function syncLegendIcons() {
+      injectLegendButton('legendBasemapIcon', '.basemap-toggle', 'legend-basemap-wrap');
+      injectLegendButton('legendDrawIcon', '.leaflet-draw-draw-polygon', 'leaflet-draw-toolbar leaflet-bar');
+      injectLegendButton('legendEditIcon', '.leaflet-draw-edit-edit', 'leaflet-draw-toolbar leaflet-bar');
+      injectLegendButton('legendSplitIcon', '.split-control a', 'leaflet-bar split-control');
+    }
+
+    function extendLineCoordinates(coords, polygonFeature) {
+      if (!coords || coords.length < 2) return coords;
+
+      let extension = 0.001;
+
+      try {
+        const bbox = turf.bbox(polygonFeature);
+        const width = Math.abs(bbox[2] - bbox[0]);
+        const height = Math.abs(bbox[3] - bbox[1]);
+        const diagonal = Math.sqrt(width * width + height * height);
+        extension = Math.max(diagonal * 2, 0.001);
+      } catch (err) {}
+
+      const start = coords[0];
+      const next = coords[1];
+      const end = coords[coords.length - 1];
+      const prev = coords[coords.length - 2];
+
+      const startDx = start[0] - next[0];
+      const startDy = start[1] - next[1];
+      const endDx = end[0] - prev[0];
+      const endDy = end[1] - prev[1];
+
+      const startLen = Math.sqrt(startDx * startDx + startDy * startDy) || 1;
+      const endLen = Math.sqrt(endDx * endDx + endDy * endDy) || 1;
+
+      const newStart = [
+        start[0] + (startDx / startLen) * extension,
+        start[1] + (startDy / startLen) * extension
+      ];
+
+      const newEnd = [
+        end[0] + (endDx / endLen) * extension,
+        end[1] + (endDy / endLen) * extension
+      ];
+
+      return [newStart, ...coords.slice(1, -1), newEnd];
+    }
+
+    function splitPolygonFeatureByLine(polygonFeature, cutterLineFeature) {
+      const baseProps = { ...(polygonFeature.properties || {}) };
+      delete baseProps._selectionKey;
+      delete baseProps._splitPart;
+      delete baseProps._partialParcel;
+      delete baseProps.oppervlakte_m2;
+      delete baseProps.is_cluster;
+      delete baseProps.cluster_keuze;
+      delete baseProps.perceel_deel;
+      delete baseProps.is_gedeeltelijk;
+
+      const extendedLineCoords = extendLineCoordinates(
+        cutterLineFeature.geometry.coordinates,
+        polygonFeature
+      );
+
+      const geoJSONReader = new jsts.io.GeoJSONReader();
+      const geoJSONWriter = new jsts.io.GeoJSONWriter();
+
+      const polygonGeom = geoJSONReader.read(polygonFeature.geometry);
+      const cutterGeom = geoJSONReader.read({
+        type: 'LineString',
+        coordinates: extendedLineCoords
+      });
+
+      const linework = polygonGeom.getBoundary().union(cutterGeom);
+      const polygonizer = new jsts.operation.polygonize.Polygonizer();
+      polygonizer.add(linework);
+
+      const polys = polygonizer.getPolygons();
+      const iterator = polys.iterator();
+      const splitFeatures = [];
+
+      while (iterator.hasNext()) {
+        const candidateGeom = iterator.next();
+
+        if (!candidateGeom || candidateGeom.isEmpty()) continue;
+        if (candidateGeom.getArea() <= 0) continue;
+
+        const interiorPoint = candidateGeom.getInteriorPoint();
+
+        if (!polygonGeom.covers(interiorPoint)) {
+          continue;
+        }
+
+        const geomGeoJSON = geoJSONWriter.write(candidateGeom);
+
+        if (!geomGeoJSON || (geomGeoJSON.type !== 'Polygon' && geomGeoJSON.type !== 'MultiPolygon')) {
+          continue;
+        }
+
+        splitFeatures.push({
+          type: 'Feature',
+          properties: {
+            ...baseProps,
+            _partialParcel: true,
+            _selectionKey: createUniqueSelectionKey()
+          },
+          geometry: geomGeoJSON
+        });
+      }
+
+      if (splitFeatures.length < 2) {
+        throw new Error('Het perceel kon niet in meerdere delen worden opgesplitst.');
+      }
+
+      return splitFeatures;
+    }
+
+    function doesLineTouchFeature(feature, lineFeature) {
+      try {
+        return turf.booleanIntersects(feature, lineFeature);
+      } catch (err) {
+        return false;
+      }
+    }
+
+    function replaceMultipleLayersWithSplitParts(splitResults) {
+      splitResults.forEach(result => {
+        const originalLayer = result.originalLayer;
+        const originalKey = getFeatureKey(getLayerFeature(originalLayer));
+
+        editableLayers.removeLayer(originalLayer);
+        selectedFeatureKeys.delete(originalKey);
+      });
+
+      splitResults.forEach(result => {
+        result.splitFeatures.forEach((feature, index) => {
+          if (!feature.properties) {
+            feature.properties = {};
+          }
+
+          feature.properties._splitPart = index + 1;
+
+          const temp = L.geoJSON(feature, {
+            style: getSelectionStyle()
+          });
+
+          const partLayer = temp.getLayers()[0];
+          if (!partLayer) return;
+
+          partLayer.feature = {
+            type: 'Feature',
+            properties: { ...(feature.properties || {}) },
+            geometry: feature.geometry
+          };
+
+          editableLayers.addLayer(partLayer);
+          selectedFeatureKeys.add(getFeatureKey(getLayerFeature(partLayer)));
+
+          partLayer.on('click', function (evt) {
+            if (isDrawing || splitModeActive) return;
+            L.DomEvent.stopPropagation(evt);
+            removeSelectedFeatureByKey(getFeatureKey(getLayerFeature(partLayer)));
+          });
+        });
+      });
+
+      updateInfoFromSelection();
+
+      try {
+        editableLayers.bringToFront();
+      } catch (err) {}
+    }
+
+    map.on(L.Draw.Event.DRAWSTART, function () {
+      isDrawing = true;
+    });
+
+    map.on(L.Draw.Event.DRAWSTOP, function () {
+      setTimeout(() => {
+        isDrawing = false;
+      }, 100);
+    });
+
+    map.on(L.Draw.Event.CREATED, function (e) {
+      isDrawing = false;
+
+      if (splitModeActive && e.layerType === 'polyline') {
+        try {
+          const targetLayers = getSelectedPolygonLayers();
+
+          if (!targetLayers.length) {
+            deactivateSplitMode();
+            alert('Selecteer eerst minimaal één perceel of polygoon om te splitsen.');
+            return;
+          }
+
+          const cutterFeature = e.layer.toGeoJSON();
+          const splitResults = [];
+
+          targetLayers.forEach(targetLayer => {
+            const targetFeature = getLayerFeature(targetLayer);
+
+            if (!targetFeature || !targetFeature.geometry) return;
+            if (!doesLineTouchFeature(targetFeature, cutterFeature)) return;
+
+            try {
+              const splitParts = splitPolygonFeatureByLine(targetFeature, cutterFeature);
+
+              if (splitParts && splitParts.length >= 2) {
+                splitResults.push({
+                  originalLayer: targetLayer,
+                  splitFeatures: splitParts
+                });
+              }
+            } catch (err) {
+              // Niet elk geraakt perceel hoeft daadwerkelijk splitbaar te zijn.
+            }
+          });
+
+          if (!splitResults.length) {
+            alert('De getekende lijn heeft geen geselecteerde percelen in meerdere delen opgesplitst.');
+          } else {
+            replaceMultipleLayersWithSplitParts(splitResults);
+          }
+        } catch (err) {
+          console.error(err);
+          alert(err.message || 'Splitsen mislukt.');
+        } finally {
+          deactivateSplitMode();
+        }
+        return;
+      }
+
+      addDrawnLayerToSelection(e.layer);
+    });
+
+    map.on(L.Draw.Event.EDITSTART, function () {
+      isDrawing = true;
+      deactivateSplitMode();
+    });
+
+    map.on(L.Draw.Event.EDITSTOP, function () {
+      setTimeout(() => {
+        isDrawing = false;
+      }, 100);
+    });
+
+    map.on(L.Draw.Event.EDITED, function (e) {
+      e.layers.eachLayer(layer => {
+        syncLayerFeatureGeometry(layer);
+
+        if (!layer.feature) {
+          layer.feature = {
+            type: 'Feature',
+            properties: {},
+            geometry: getLayerFeature(layer)?.geometry
+          };
+        }
+
+        if (!layer.feature.properties) {
+          layer.feature.properties = {};
+        }
+
+        const feature = getLayerFeature(layer);
+
+        if (feature && !isDrawnPolygonFeature(feature)) {
+          layer.feature.properties._partialParcel = true;
+        }
+      });
+
+      selectedFeatureKeys.clear();
+      editableLayers.eachLayer(layer => {
+        syncLayerFeatureGeometry(layer);
+        const feature = getLayerFeature(layer);
+        selectedFeatureKeys.add(getFeatureKey(feature));
+      });
+
+      updateInfoFromSelection();
+    });
+
+    async function fetchAddressSuggestions(query) {
+      const params = new URLSearchParams({
+        q: query,
+        fq: 'type:adres',
+        rows: '6'
+      });
+
+      const res = await fetch(`${PDOK_SUGGEST_URL}?${params.toString()}`);
+      if (!res.ok) throw new Error('Adres suggest ophalen mislukt');
+
+      const data = await res.json();
+      const docs = data?.response?.docs || [];
+      return docs.map(doc => ({ ...doc, resultType: 'adres' }));
+    }
+
+    async function fetchParcelSuggestions(query) {
+      const params = new URLSearchParams({
+        q: query,
+        fq: 'type:perceel',
+        rows: '6'
+      });
+
+      const res = await fetch(`${PDOK_SUGGEST_URL}?${params.toString()}`);
+      if (!res.ok) throw new Error('Perceel suggest ophalen mislukt');
+
+      const data = await res.json();
+      const docs = data?.response?.docs || [];
+      return docs.map(doc => ({ ...doc, resultType: 'perceel' }));
+    }
+
+    async function fetchLookupById(id) {
+      const params = new URLSearchParams({ id });
+      const res = await fetch(`${PDOK_LOOKUP_URL}?${params.toString()}`);
+      if (!res.ok) throw new Error('Lookup mislukt');
+
+      const data = await res.json();
+      return data?.response?.docs?.[0] || null;
+    }
+
+    async function chooseSuggestion(index) {
+      const item = lastSuggestResults[index];
+      if (!item) return;
+
+      addressInputEl.value = item.weergavenaam || '';
+      hideSuggestions();
+
+      try {
+        const detail = await fetchLookupById(item.id);
+
+        if (!detail) {
+          return;
+        }
+
+        const coords = extractLatLngFromLookup(detail);
+
+        if (!coords) {
+          return;
+        }
+
+        map.setView([coords.lat, coords.lng], 19);
+
+        setTimeout(async () => {
+          await refreshParcelLayer();
+          await toggleParcelAtLatLng(coords, true);
+        }, 300);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    const debouncedSuggest = debounce(async function () {
+      const q = addressInputEl.value.trim();
+
+      if (q.length < 3) {
+        hideSuggestions();
+        return;
+      }
+
+      try {
+        const [addressResults, parcelResults] = await Promise.allSettled([
+          fetchAddressSuggestions(q),
+          fetchParcelSuggestions(q)
+        ]);
+
+        const addresses = addressResults.status === 'fulfilled' ? addressResults.value : [];
+        const parcels = parcelResults.status === 'fulfilled' ? parcelResults.value : [];
+
+        const combined = [...addresses, ...parcels];
+
+        const unique = [];
+        const seen = new Set();
+
+        for (const item of combined) {
+          const key = `${item.resultType}|${item.id}|${item.weergavenaam}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            unique.push(item);
+          }
+        }
+
+        lastSuggestResults = unique;
+        showSuggestions(unique);
+      } catch (err) {
+        console.error(err);
+        hideSuggestions();
+      }
+    }, 250);
+
+    addressInputEl.addEventListener('input', debouncedSuggest);
+
+    addressInputEl.addEventListener('keydown', function (e) {
+      const visible = suggestionsEl.style.display === 'block';
+      const total = lastSuggestResults.length;
+
+      if (!visible || !total) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        highlightedSuggestionIndex = Math.min(highlightedSuggestionIndex + 1, total - 1);
+        updateSuggestionHighlight();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        highlightedSuggestionIndex = Math.max(highlightedSuggestionIndex - 1, 0);
+        updateSuggestionHighlight();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (highlightedSuggestionIndex >= 0) {
+          chooseSuggestion(highlightedSuggestionIndex);
+        } else if (total > 0) {
+          chooseSuggestion(0);
+        }
+      } else if (e.key === 'Escape') {
+        hideSuggestions();
+      }
+    });
+
+    document.addEventListener('click', function (e) {
+      if (!suggestionsEl.contains(e.target) && e.target !== addressInputEl) {
+        hideSuggestions();
+      }
+
+      if (
+        basemapMenuEl &&
+        !e.target.closest('.basemap-control')
+      ) {
+        basemapMenuEl.classList.remove('open');
+      }
+    });
+
+    document.getElementById('clearSelectionBtn').addEventListener('click', function () {
+      clearEditableLayers();
+    });
+
+    clusterChoiceEl.addEventListener('change', function () {
+      // geen visuele output nodig, maar export gebruikt deze waarde
+    });
+
+    map.on('click', async function (e) {
+      if (isDrawing || splitModeActive) return;
+
+      if (map.getZoom() < PARCELS_MIN_ZOOM) {
+        return;
+      }
+
+      await toggleParcelAtLatLng(e.latlng, false);
+    });
+
+    map.on('moveend', function () {
+      clearTimeout(refreshTimeout);
+      refreshTimeout = setTimeout(() => {
+        refreshParcelLayer();
+      }, 300);
+    });
+
+    updateInfoFromSelection();
+    updateParcelLayerStyle();
+    refreshParcelLayer();
+
+    setTimeout(() => {
+      syncLegendIcons();
+      updateBasemapMenuActiveState();
+    }, 0);
+
+    runBtn.addEventListener('click', function () {
+      const featureCount = getSelectedFeatureCollection().features.length;
+      const clusterChoice = clusterChoiceEl.value;
+
+      if (!featureCount) {
+        alert('Selecteer minimaal één perceel');
+        return;
+      }
+
+      if (featureCount > 1 && !clusterChoice) {
+        alert('Vul alle velden in');
+        return;
+      }
+
+      downloadCurrentGeojson();
+    });
+  </script>
+</body>
+</html>
