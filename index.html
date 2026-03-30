@@ -1645,7 +1645,9 @@
         throw new Error('Het GeoJSON bestand bevat geen geldige polygonen.');
       }
 
-      clearEditableLayers();
+      // clearEditableLayers();  // <-- DEZE REGEL WEGHALEN
+
+      const newlyAddedLayers = [];
 
       layers.forEach(layer => {
         const feature = getLayerFeature(layer);
@@ -1663,9 +1665,8 @@
           layer.feature.properties = {};
         }
 
-        if (!layer.feature.properties._selectionKey) {
-          layer.feature.properties._selectionKey = createUniqueSelectionKey();
-        }
+        // altijd unieke selection key geven zodat meerdere imports naast elkaar kunnen bestaan
+        layer.feature.properties._selectionKey = createUniqueSelectionKey();
 
         const props = layer.feature.properties;
         const hasParcelInfo =
@@ -1700,6 +1701,7 @@
         editableLayers.addLayer(layer);
         selectedFeatureKeys.add(getFeatureKey(getLayerFeature(layer)));
         attachSelectionLayerEvents(layer);
+        newlyAddedLayers.push(layer);
       });
 
       updateInfoFromSelection();
@@ -1709,7 +1711,8 @@
       } catch (err) {}
 
       try {
-        const bounds = importedLayer.getBounds();
+        const newGroup = L.featureGroup(newlyAddedLayers);
+        const bounds = newGroup.getBounds();
         if (bounds && bounds.isValid()) {
           map.fitBounds(bounds, { padding: [20, 20], maxZoom: 20 });
         }
