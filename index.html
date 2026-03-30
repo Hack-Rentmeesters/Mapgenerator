@@ -439,10 +439,25 @@
       font-style: italic;
     }
 
+    .action-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
     .button-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 10px;
+    }
+
+    .run-row {
+      display: flex;
+      justify-content: center;
+    }
+
+    .run-row .run-btn {
+      width: 100%;
     }
 
     .sidebar button {
@@ -466,7 +481,6 @@
     }
 
     .run-btn {
-      width: 100%;
       background: linear-gradient(to bottom, var(--run), #18222b) !important;
       color: white !important;
       border: 1px solid var(--run) !important;
@@ -776,6 +790,10 @@
         grid-template-columns: 1fr;
       }
 
+      .run-row .run-btn {
+        width: 100%;
+      }
+
       .footer-inner,
       .footer-bottom {
         padding-left: 16px;
@@ -893,9 +911,21 @@
               </div>
             </div>
 
-            <div class="button-row">
-              <button id="clearSelectionBtn">Wis selectie</button>
-              <button id="runBtn" class="run-btn">RUN</button>
+            <div class="action-buttons">
+              <div class="button-row">
+                <button id="clearSelectionBtn">Wis selectie</button>
+                <button type="button" id="importGeojsonBtn">Importeer GeoJSON</button>
+                <input
+                  type="file"
+                  id="geojsonFileInput"
+                  accept=".geojson,.json,application/geo+json,application/json"
+                  class="hidden"
+                />
+              </div>
+
+              <div class="run-row">
+                <button id="runBtn" class="run-btn">RUN</button>
+              </div>
             </div>
           </div>
         </aside>
@@ -1101,6 +1131,8 @@
     const selectedParcelCodesEl = document.getElementById('selectedParcelCodes');
     const clusterGroupEl = document.getElementById('clusterGroup');
     const clusterChoiceEl = document.getElementById('clusterChoice');
+    const importGeojsonBtn = document.getElementById('importGeojsonBtn');
+    const geojsonFileInput = document.getElementById('geojsonFileInput');
 
     function createUniqueSelectionKey() {
       uniqueSelectionCounter += 1;
@@ -1216,14 +1248,6 @@
         type: 'FeatureCollection',
         features
       };
-    }
-
-    function getSelectedLayersArray() {
-      const layers = [];
-      editableLayers.eachLayer(layer => {
-        layers.push(layer);
-      });
-      return layers;
     }
 
     function getSelectedPolygonLayers() {
@@ -1514,6 +1538,18 @@
       };
     }
 
+    function attachSelectionLayerEvents(layer) {
+      if (!layer) return;
+
+      layer.off('click');
+
+      layer.on('click', function (evt) {
+        if (isDrawing || splitModeActive) return;
+        L.DomEvent.stopPropagation(evt);
+        removeSelectedFeatureByKey(getFeatureKey(getLayerFeature(layer)));
+      });
+    }
+
     function toggleFeatureSelection(feature) {
       const selectedFeature = {
         type: 'Feature',
@@ -1536,6 +1572,7 @@
       onlyLayer.feature = selectedFeature;
       editableLayers.addLayer(onlyLayer);
       selectedFeatureKeys.add(key);
+      attachSelectionLayerEvents(onlyLayer);
       updateInfoFromSelection();
 
       try {
@@ -1573,12 +1610,7 @@
 
       editableLayers.addLayer(layer);
       selectedFeatureKeys.add(key);
-
-      layer.on('click', function (evt) {
-        if (isDrawing || splitModeActive) return;
-        L.DomEvent.stopPropagation(evt);
-        removeSelectedFeatureByKey(getFeatureKey(getLayerFeature(layer)));
-      });
+      attachSelectionLayerEvents(layer);
 
       updateInfoFromSelection();
 
@@ -1587,6 +1619,101 @@
       } catch (err) {}
 
       return true;
+    }
+
+    function addImportedGeoJsonToMap(geojson) {
+      if (!geojson) {
+        throw new Error('Geen geldig GeoJSON bestand.');
+      }
+
+      const allowedTopTypes = ['FeatureCollection', 'Feature', 'Polygon', 'MultiPolygon'];
+      if (!allowedTopTypes.includes(geojson.type)) {
+        throw new Error('Alleen GeoJSON met polygonen wordt ondersteund.');
+      }
+
+      const importedLayer = L.geoJSON(geojson, {
+        style: getSelectionStyle(),
+        filter: function (feature) {
+          if (!feature || !feature.geometry) return false;
+          return feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon';
+        }
+      });
+
+      const layers = importedLayer.getLayers();
+
+      if (!layers.length) {
+        throw new Error('Het GeoJSON bestand bevat geen geldige polygonen.');
+      }
+
+      clearEditableLayers();
+
+      layers.forEach(layer => {
+        const feature = getLayerFeature(layer);
+        if (!feature || !feature.geometry) return;
+
+        if (!layer.feature) {
+          layer.feature = {
+            type: 'Feature',
+            properties: { ...(feature.properties || {}) },
+            geometry: feature.geometry
+          };
+        }
+
+        if (!layer.feature.properties) {
+          layer.feature.properties = {};
+        }
+
+        if (!layer.feature.properties._selectionKey) {
+          layer.feature.properties._selectionKey = createUniqueSelectionKey();
+        }
+
+        const props = layer.feature.properties;
+        const hasParcelInfo =
+          props.kadastraleAanduiding ||
+          props.kadastraleaanduiding ||
+          props.perceelnummer ||
+          props.kadastraalperceelnummer ||
+          props.kadastraalPerceelnummer ||
+          props.sectie ||
+          props.kadastralesectie ||
+          props.kadastraleSectie ||
+          props.kadastralegemeentenaam ||
+          props.kadastralegemeente ||
+          props.gemeentenaam ||
+          props.kadastraleGemeenteWaarde ||
+          props.kadastraleGemeenteNaam;
+
+        if (!hasParcelInfo) {
+          props._drawnPolygon = true;
+        }
+
+        if (props.perceel_deel === 'gedeeltelijk' || props.is_gedeeltelijk === true) {
+          props._partialParcel = true;
+        }
+
+        syncLayerFeatureGeometry(layer);
+
+        if (layer.setStyle) {
+          layer.setStyle(getSelectionStyle());
+        }
+
+        editableLayers.addLayer(layer);
+        selectedFeatureKeys.add(getFeatureKey(getLayerFeature(layer)));
+        attachSelectionLayerEvents(layer);
+      });
+
+      updateInfoFromSelection();
+
+      try {
+        editableLayers.bringToFront();
+      } catch (err) {}
+
+      try {
+        const bounds = importedLayer.getBounds();
+        if (bounds && bounds.isValid()) {
+          map.fitBounds(bounds, { padding: [20, 20], maxZoom: 20 });
+        }
+      } catch (err) {}
     }
 
     function findSelectedLayerAtLatLng(latlng) {
@@ -2057,12 +2184,7 @@
 
           editableLayers.addLayer(partLayer);
           selectedFeatureKeys.add(getFeatureKey(getLayerFeature(partLayer)));
-
-          partLayer.on('click', function (evt) {
-            if (isDrawing || splitModeActive) return;
-            L.DomEvent.stopPropagation(evt);
-            removeSelectedFeatureByKey(getFeatureKey(getLayerFeature(partLayer)));
-          });
+          attachSelectionLayerEvents(partLayer);
         });
       });
 
@@ -2335,6 +2457,37 @@
 
     clusterChoiceEl.addEventListener('change', function () {
       // geen visuele output nodig, maar export gebruikt deze waarde
+    });
+
+    importGeojsonBtn.addEventListener('click', function () {
+      geojsonFileInput.click();
+    });
+
+    geojsonFileInput.addEventListener('change', function (e) {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+
+      reader.onload = function (event) {
+        try {
+          const text = event.target.result;
+          const geojson = JSON.parse(text);
+          addImportedGeoJsonToMap(geojson);
+        } catch (err) {
+          console.error(err);
+          alert('Het gekozen bestand is geen geldig GeoJSON bestand.');
+        } finally {
+          geojsonFileInput.value = '';
+        }
+      };
+
+      reader.onerror = function () {
+        alert('Het bestand kon niet worden ingelezen.');
+        geojsonFileInput.value = '';
+      };
+
+      reader.readAsText(file);
     });
 
     map.on('click', async function (e) {
