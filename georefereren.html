@@ -897,9 +897,11 @@
           </div>
 
           <div class="field-group hidden" id="lineBufferGroup">
-            <label for="lineBufferInput">Lijndikte / buffer (meters)</label>
+            <label for="lineBufferInput">Buffer (meters)</label>
             <input type="number" id="lineBufferInput" min="0" step="0.1" value="1" />
-            <div class="helper-text">Bufferzone rondom de getekende lijnen.</div>
+            <div class="helper-text">
+              Totale breedte van de buffer rondom de lijn. Bijvoorbeeld: 1 meter = 0,5 meter aan beide kanten.
+            </div>
           </div>
 
           <div class="stats-grid">
@@ -1281,12 +1283,24 @@
     function computeDissolvedBuffer(bufferMeters) {
       const buffers = [];
 
+      /*
+        Turf.buffer gebruikt de afstand vanaf de hartlijn.
+        Dus 1 meter buffer betekent normaal:
+        1 meter links + 1 meter rechts = 2 meter totale breedte.
+
+        Daarom delen we de invoer hier door 2.
+        Nu betekent:
+        input 1 meter = 0.5 meter links + 0.5 meter rechts = 1 meter totale breedte.
+      */
+      const bufferRadius = bufferMeters / 2;
+
       drawnItems.eachLayer(layer => {
         if (!(layer instanceof L.Polyline) || layer instanceof L.Polygon) return;
 
         const feature = layer.toGeoJSON();
+
         try {
-          const buffered = turf.buffer(feature, bufferMeters, { units: 'meters' });
+          const buffered = turf.buffer(feature, bufferRadius, { units: 'meters' });
           if (buffered) buffers.push(buffered);
         } catch (err) {
           console.error('Buffer fout:', err);
@@ -1296,6 +1310,7 @@
       if (!buffers.length) return null;
 
       let dissolved = buffers[0];
+
       for (let i = 1; i < buffers.length; i++) {
         try {
           dissolved = turf.union(dissolved, buffers[i]);
@@ -1349,6 +1364,8 @@
             ...(feature.properties || {}),
             geometry_type: 'line',
             buffer_meters: bufferMeters,
+            buffer_radius_meters: bufferMeters > 0 ? bufferMeters / 2 : 0,
+            buffer_total_width_meters: bufferMeters,
             layer_name: drawnLayerName || null,
             background_type: backgroundType || null
           };
@@ -1365,6 +1382,8 @@
             dissolved.properties = {
               geometry_type: 'line_buffer_dissolved',
               source_buffer_meters: bufferMeters,
+              buffer_radius_meters: bufferMeters / 2,
+              buffer_total_width_meters: bufferMeters,
               layer_name: bufferLayerName || null,
               background_type: backgroundType || null
             };
