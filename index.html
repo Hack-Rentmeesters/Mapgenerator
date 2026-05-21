@@ -587,6 +587,69 @@
       color: #2f4657;
     }
 
+
+
+    .leaflet-pane.leaflet-parcel-label-pane {
+      pointer-events: none;
+      transition: opacity 0.12s ease;
+    }
+
+    .leaflet-pane.leaflet-parcel-label-pane.labels-hidden {
+      opacity: 0;
+    }
+
+    .parcel-number-label-anchor {
+      width: 0;
+      height: 0;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      overflow: visible;
+    }
+
+    .parcel-number-label {
+      position: absolute;
+      left: 0;
+      top: 0;
+      transform: translate(-50%, -50%);
+      transform-origin: center center;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(66, 101, 128, 0.32);
+      border-radius: 999px;
+      color: #1f2c36;
+      font-size: 11px;
+      font-weight: 850;
+      letter-spacing: 0.08px;
+      line-height: 1;
+      padding: 2px 5px;
+      box-shadow: 0 1px 4px rgba(31, 44, 54, 0.14);
+      pointer-events: none;
+      white-space: nowrap;
+      user-select: none;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+      opacity: 0;
+      animation: parcelLabelFadeIn 0.12s ease forwards;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: geometricPrecision;
+    }
+
+    .parcel-number-label.compact {
+      font-size: 10px;
+      padding: 2px 4px;
+      border-color: rgba(66, 101, 128, 0.24);
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    @keyframes parcelLabelFadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+
     .hidden {
       display: none !important;
     }
@@ -945,6 +1008,10 @@
     const PDOK_LOOKUP_URL = 'https://api.pdok.nl/bzk/locatieserver/search/v3_1/lookup';
     const WFS_BASE = 'https://service.pdok.nl/kadaster/kadastralekaart/wfs/v5_0';
     const PARCELS_MIN_ZOOM = 15;
+    const PARCEL_LABELS_MIN_ZOOM = PARCELS_MIN_ZOOM + 1;
+    const MAX_VISIBLE_PARCEL_LABELS = 350;
+    const MIN_LABEL_PIXEL_WIDTH = 26;
+    const MIN_LABEL_PIXEL_HEIGHT = 16;
 
     const WFS_TYPENAMES = [
       'kadastralekaart:Perceel',
@@ -1023,6 +1090,16 @@
 
     const editableLayers = new L.FeatureGroup();
     map.addLayer(editableLayers);
+
+    map.createPane('parcelLabelPane');
+    map.getPane('parcelLabelPane').classList.add('leaflet-parcel-label-pane');
+    map.getPane('parcelLabelPane').style.zIndex = 620;
+
+    const parcelLabelLayer = L.layerGroup([], { pane: 'parcelLabelPane' }).addTo(map);
+    let lastParcelFeatureCollection = null;
+    let labelRefreshTimeout = null;
+    let labelRenderVersion = 0;
+
 
     let basemapMenuEl = null;
 
@@ -1127,12 +1204,186 @@
       return `sel_${Date.now()}_${uniqueSelectionCounter}_${Math.random().toString(36).slice(2, 8)}`;
     }
 
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
     function updateParcelLayerStyle() {
       parcelLayer.setStyle(getParcelLayerStyle());
       try {
+        parcelLabelLayer.bringToFront();
         editableLayers.bringToFront();
       } catch (err) {}
     }
+
+    function getParcelNumberLabelFromFeature(feature) {
+      const props = feature?.properties || {};
+
+      return (
+        props.perceelnummer ||
+        props.kadastraalperceelnummer ||
+        props.kadastraalPerceelnummer ||
+        props.kadas_perceelnummer ||
+        props.perceelNummer ||
+        props.perceelnummerwaarde ||
+        props.kadastraleAanduiding ||
+        props.kadastraleaanduiding ||
+        props.label ||
+        ''
+      );
+    }
+
+    function getParcelLabelLatLng(feature) {
+      try {
+        let labelPoint = null;
+
+        if (turf.centerOfMass) {
+          labelPoint = turf.centerOfMass(feature);
+        }
+
+        if (!labelPoint || !labelPoint.geometry || !labelPoint.geometry.coordinates) {
+          labelPoint = turf.pointOnFeature(feature);
+        }
+
+        const coords = labelPoint.geometry.coordinates;
+        return L.latLng(coords[1], coords[0]);
+      } catch (err) {
+        try {
+          const bounds = L.geoJSON(feature).getBounds();
+          if (bounds && bounds.isValid()) {
+            return bounds.getCenter();
+          }
+        } catch (innerErr) {}
+      }
+
+      return null;
+    }
+
+    function setParcelLabelsHidden(hidden) {
+      const pane = map.getPane('parcelLabelPane');
+      if (!pane) return;
+      pane.classList.toggle('labels-hidden', !!hidden);
+    }
+
+    function getFeaturePixelSize(feature) {
+      try {
+        const bounds = L.geoJSON(feature).getBounds();
+        if (!bounds || !bounds.isValid()) return null;
+
+        const northWest = map.latLngToLayerPoint(bounds.getNorthWest());
+        const southEast = map.latLngToLayerPoint(bounds.getSouthEast());
+
+        return {
+          width: Math.abs(southEast.x - northWest.x),
+          height: Math.abs(southEast.y - northWest.y)
+        };
+      } catch (err) {
+        return null;
+      }
+    }
+
+    function shouldShowParcelLabel(feature) {
+      if (!feature || !feature.geometry) return false;
+      if (feature.geometry.type !== 'Polygon' && feature.geometry.type !== 'MultiPolygon') return false;
+
+      const size = getFeaturePixelSize(feature);
+      if (!size) return true;
+
+      return size.width >= MIN_LABEL_PIXEL_WIDTH && size.height >= MIN_LABEL_PIXEL_HEIGHT;
+    }
+
+    function updateParcelNumberLabels(featureCollection) {
+      lastParcelFeatureCollection = featureCollection || lastParcelFeatureCollection;
+      const renderVersion = ++labelRenderVersion;
+      parcelLabelLayer.clearLayers();
+
+      if (map.getZoom() < PARCEL_LABELS_MIN_ZOOM) {
+        setParcelLabelsHidden(true);
+        return;
+      }
+
+      const features = lastParcelFeatureCollection?.features || [];
+      if (!features.length) {
+        setParcelLabelsHidden(true);
+        return;
+      }
+
+      const labelFeatures = [];
+
+      for (const feature of features) {
+        if (!shouldShowParcelLabel(feature)) continue;
+
+        const label = String(getParcelNumberLabelFromFeature(feature) || '').trim();
+        if (!label) continue;
+
+        const latlng = getParcelLabelLatLng(feature);
+        if (!latlng) continue;
+
+        const pixelSize = getFeaturePixelSize(feature);
+        const compact = pixelSize && (pixelSize.width < 52 || pixelSize.height < 28);
+
+        labelFeatures.push({ feature, label, latlng, compact });
+
+        if (labelFeatures.length >= MAX_VISIBLE_PARCEL_LABELS) {
+          break;
+        }
+      }
+
+      const fragmentMarkers = [];
+
+      labelFeatures.forEach(item => {
+        const labelClass = item.compact ? 'parcel-number-label compact' : 'parcel-number-label';
+
+        const marker = L.marker(item.latlng, {
+          pane: 'parcelLabelPane',
+          interactive: false,
+          keyboard: false,
+          riseOnHover: false,
+          icon: L.divIcon({
+            className: 'parcel-number-label-anchor',
+            html: `<div class="${labelClass}">${escapeHtml(item.label)}</div>`,
+            iconSize: [0, 0],
+            iconAnchor: [0, 0]
+          })
+        });
+
+        fragmentMarkers.push(marker);
+      });
+
+      requestAnimationFrame(() => {
+        if (renderVersion !== labelRenderVersion) return;
+        fragmentMarkers.forEach(marker => marker.addTo(parcelLabelLayer));
+        setParcelLabelsHidden(false);
+
+        try {
+          parcelLabelLayer.bringToFront();
+          editableLayers.bringToFront();
+        } catch (err) {}
+      });
+    }
+
+    function scheduleParcelLabelRefresh(delay = 120) {
+      clearTimeout(labelRefreshTimeout);
+
+      if (map.getZoom() < PARCEL_LABELS_MIN_ZOOM) {
+        labelRenderVersion++;
+        parcelLabelLayer.clearLayers();
+        setParcelLabelsHidden(true);
+        return;
+      }
+
+      setParcelLabelsHidden(true);
+
+      labelRefreshTimeout = setTimeout(() => {
+        updateParcelNumberLabels(lastParcelFeatureCollection);
+      }, delay);
+    }
+
 
     function formatNumberNL(value, decimals = 2) {
       return new Intl.NumberFormat('nl-NL', {
@@ -1857,22 +2108,32 @@
       const currentZoom = map.getZoom();
 
       if (currentZoom < PARCELS_MIN_ZOOM) {
+        clearTimeout(labelRefreshTimeout);
+        labelRenderVersion++;
         parcelLayer.clearLayers();
+        parcelLabelLayer.clearLayers();
+        setParcelLabelsHidden(true);
         return;
       }
 
       try {
         const data = await fetchParcelFeaturesInView();
+        lastParcelFeatureCollection = data;
         parcelLayer.clearLayers();
         parcelLayer.addData(data);
         updateParcelLayerStyle();
+        scheduleParcelLabelRefresh(80);
 
         try {
           editableLayers.bringToFront();
         } catch (err) {}
       } catch (err) {
         console.error(err);
+        clearTimeout(labelRefreshTimeout);
+        labelRenderVersion++;
         parcelLayer.clearLayers();
+        parcelLabelLayer.clearLayers();
+        setParcelLabelsHidden(true);
       }
     }
 
@@ -2486,11 +2747,23 @@
       await toggleParcelAtLatLng(e.latlng, false);
     });
 
+    map.on('zoomstart movestart', function () {
+      clearTimeout(labelRefreshTimeout);
+      labelRenderVersion++;
+      setParcelLabelsHidden(true);
+    });
+
+    // Belangrijk: geen aparte label-refresh op zoomend.
+    // Leaflet triggert bij zoomen ook moveend; daar vernieuwen we de WFS-laag en labels één keer.
+    map.on('zoomend', function () {
+      setParcelLabelsHidden(true);
+    });
+
     map.on('moveend', function () {
       clearTimeout(refreshTimeout);
       refreshTimeout = setTimeout(() => {
         refreshParcelLayer();
-      }, 300);
+      }, 260);
     });
 
     updateInfoFromSelection();
