@@ -5,18 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Help | Rentmeester Assistent</title>
 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --brand: #426580;
-      --brand-dark: #355267;
-      --brand-soft: #eef3f7;
-      --brand-soft-2: #f6f9fb;
-      --bg: #f3f5f7;
+      --brand: #0F2B1B;
+      --brand-dark: #091C11;
+      --brand-soft: #F1F6EA;
+      --brand-soft-2: #F8FAF4;
+      --bg: #F3F4EE;
       --panel: #ffffff;
-      --text: #1f2c36;
-      --text-soft: #667684;
-      --border: #d8e0e6;
-      --border-strong: #c7d1d9;
+      --text: #17251C;
+      --text-soft: #667267;
+      --border: #DCE2D7;
+      --border-strong: #C8D1C3;
       --shadow: 0 10px 28px rgba(34, 52, 67, 0.08);
       --shadow-soft: 0 4px 14px rgba(34, 52, 67, 0.06);
       --radius: 16px;
@@ -31,7 +34,7 @@
       padding: 0;
       font-family: Arial, Helvetica, sans-serif;
       background:
-        radial-gradient(circle at top left, #fafbfd 0%, #f3f5f7 45%, #edf1f4 100%);
+        radial-gradient(circle at top left, #fafbfd 0%, #F3F4EE 45%, #E8ECE3 100%);
       color: var(--text);
     }
 
@@ -43,7 +46,7 @@
 
     header {
       backdrop-filter: blur(10px);
-      background: linear-gradient(135deg, #426580 0%, #355267 100%);
+      background: linear-gradient(135deg, #0F2B1B 0%, #091C11 100%);
       border-bottom: 1px solid rgba(255,255,255,0.10);
       box-shadow: 0 8px 24px rgba(0,0,0,0.10);
     }
@@ -136,13 +139,13 @@
     .back-link:hover {
       transform: translateY(-1px);
       background: #fff;
-      border-color: #b9c8d3;
+      border-color: #BFCDB7;
     }
 
     .intro-card {
       margin-bottom: 20px;
-      background: linear-gradient(135deg, rgba(66, 101, 128, 0.10), rgba(255,255,255,0.92));
-      border: 1px solid #d7e2ea;
+      background: linear-gradient(135deg, rgba(15, 43, 27, 0.10), rgba(255,255,255,0.92));
+      border: 1px solid #DDE6D7;
       border-radius: var(--radius);
       padding: 24px;
       box-shadow: var(--shadow);
@@ -173,7 +176,7 @@
 
     .card-header {
       padding: 16px 18px;
-      background: linear-gradient(to bottom, #f8fafc, #f2f6f9);
+      background: linear-gradient(to bottom, #F8FAF5, #F0F4ED);
       border-bottom: 1px solid var(--border);
     }
 
@@ -181,7 +184,7 @@
       margin: 0;
       font-size: 16px;
       font-weight: 800;
-      color: #243847;
+      color: #183021;
     }
 
     .card-content {
@@ -194,7 +197,7 @@
     }
 
     .step-item {
-      background: #f9fbfc;
+      background: #FAFBF7;
       border: 1px solid var(--border);
       border-radius: 14px;
       padding: 16px;
@@ -226,23 +229,23 @@
     .step-title {
       font-size: 16px;
       font-weight: 800;
-      color: #243847;
+      color: #183021;
       margin-bottom: 6px;
     }
 
     .step-text {
       font-size: 14px;
       line-height: 1.65;
-      color: #425563;
+      color: #405845;
     }
 
     .step-text strong {
-      color: #243847;
+      color: #183021;
     }
 
     .site-footer {
       margin-top: 24px;
-      background: linear-gradient(180deg, rgba(66, 101, 128, 0.98), rgba(53, 82, 103, 0.98));
+      background: linear-gradient(180deg, rgba(15, 43, 27, 0.98), rgba(53, 82, 103, 0.98));
       border-top: 1px solid rgba(255,255,255,0.08);
       color: #ffffff;
       box-shadow: 0 -6px 18px rgba(0,0,0,0.05);
@@ -351,18 +354,256 @@
         width: 100%;
       }
     }
-  </style>
+  
+
+    /* Huisstijl: alleen kleurwijzigingen; indeling en functies blijven origineel. */
+    :root {
+      --brand: #0F2B1B;
+      --brand-dark: #091C11;
+      --brand-soft: #F1F6EA;
+      --brand-soft-2: #F8FAF4;
+      --bg: #F3F4EE;
+      --panel: #ffffff;
+      --text: #17251C;
+      --text-soft: #667267;
+      --border: #DCE2D7;
+      --border-strong: #C8D1C3;
+      --accent: #A8D900;
+      --accent-fill: rgba(204,255,49,.22);
+      --run: #CCFF31;
+      --run-hover: #B8EB24;
+    }
+
+    header {
+      background: linear-gradient(135deg, #0F2B1B 0%, #091C11 100%);
+    }
+
+    .header-nav-btn.active {
+      background: #CCFF31;
+      border-color: #CCFF31;
+      color: #0F2B1B;
+    }
+
+    .header-nav-btn.active:hover {
+      background: #DBFF73;
+      border-color: #DBFF73;
+      color: #0F2B1B;
+    }
+
+    .toolbar-link,
+    .run-btn,
+    .file-upload-btn {
+      background: linear-gradient(to bottom, #CCFF31, #B8EB24) !important;
+      border-color: #A7D600 !important;
+      color: #0F2B1B !important;
+      box-shadow: 0 8px 18px rgba(15,43,27,.16) !important;
+    }
+
+    .toolbar-link:hover,
+    .run-btn:hover,
+    .file-upload-btn:hover {
+      background: linear-gradient(to bottom, #DBFF73, #C7F23B) !important;
+      border-color: #98C500 !important;
+      color: #0F2B1B !important;
+    }
+
+    .step-number {
+      background: #CCFF31;
+      color: #0F2B1B;
+    }
+
+    .site-footer {
+      background: linear-gradient(180deg, #0F2B1B, #091C11);
+    }
+
+  
+    .brand-home-link {
+      display: inline-flex;
+      align-items: center;
+      color: inherit;
+      text-decoration: none;
+      border-radius: 14px;
+    }
+    .brand-home-link:focus-visible {
+      outline: 3px solid #CCFF31;
+      outline-offset: 4px;
+    }
+
+  
+
+    /* Gelijke vormgeving op alle pagina's: gebaseerd op de landingspagina. */
+    :root {
+      --green: #0F2B1B;
+      --green-dark: #091C11;
+      --lime: #CCFF31;
+      --cream: #F4F1E8;
+      --white: #FFFFFF;
+      --text: #183021;
+      --muted: #667267;
+      --line: rgba(15, 43, 27, .13);
+      --body: "DM Sans", Arial, sans-serif;
+      --display: "Fraunces", Georgia, serif;
+    }
+
+    html, body {
+      font-family: var(--body) !important;
+      background: var(--cream) !important;
+      color: var(--text);
+    }
+
+    .topbar {
+      position: relative;
+      z-index: 6000;
+      background: var(--green) !important;
+      color: var(--white);
+      border-bottom: 0;
+      box-shadow: none;
+      backdrop-filter: none;
+    }
+
+    .topbar-inner {
+      width: min(1120px, calc(100% - 36px));
+      max-width: none;
+      min-height: 78px;
+      margin: 0 auto;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--white);
+      text-decoration: none;
+      flex-shrink: 0;
+    }
+
+    .brand img {
+      width: 46px;
+      height: 46px;
+      object-fit: contain;
+      padding: 4px;
+      border-radius: 13px;
+      background: rgba(255,255,255,.10);
+      box-shadow: none;
+    }
+
+    .brand strong {
+      font-family: var(--display);
+      font-size: 22px;
+      font-weight: 600;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .brand span { color: var(--lime); }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .header-nav-btn,
+    .header-badge {
+      padding: 9px 13px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.16);
+      color: var(--white);
+      font-family: var(--body);
+      font-size: 12px;
+      font-weight: 700;
+      text-decoration: none;
+      white-space: nowrap;
+      box-shadow: none;
+      transition: background .18s ease, border-color .18s ease, color .18s ease;
+    }
+
+    .header-nav-btn:hover {
+      background: rgba(255,255,255,.15);
+      border-color: rgba(255,255,255,.25);
+    }
+
+    .header-nav-btn.active,
+    .header-nav-btn.active:hover,
+    .header-badge {
+      background: var(--lime);
+      border-color: var(--lime);
+      color: var(--green);
+    }
+
+    .page { background: transparent; }
+
+    .site-footer {
+      margin-top: 24px;
+      background: transparent !important;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+      box-shadow: none;
+    }
+
+    .footer-inner {
+      width: min(1120px, calc(100% - 36px));
+      max-width: none;
+      min-height: 74px;
+      margin: 0 auto;
+      padding: 18px 0 10px;
+    }
+
+    .footer-title { color: var(--green); }
+    .footer-text, .footer-bottom { color: var(--muted); }
+
+    .footer-link {
+      color: var(--green);
+      background: rgba(15,43,27,.05);
+      border-color: var(--line);
+    }
+
+    .footer-link:hover {
+      color: var(--green-dark);
+      background: rgba(15,43,27,.10);
+      border-color: rgba(15,43,27,.22);
+    }
+
+    .footer-bottom {
+      width: min(1120px, calc(100% - 36px));
+      max-width: none;
+      margin: 0 auto;
+      padding: 0 0 20px;
+    }
+
+    @media (max-width: 900px) {
+      .topbar-inner {
+        padding: 12px 0;
+        align-items: flex-start;
+      }
+      .header-actions { width: 100%; justify-content: flex-start; }
+    }
+
+    @media (max-width: 700px) {
+      .topbar-inner { min-height: 70px; }
+      .brand strong { font-size: 18px; }
+      .brand img { width: 42px; height: 42px; }
+      .header-nav-btn { padding: 8px 11px; font-size: 11px; }
+    }
+</style>
 </head>
 <body>
-  <header>
-    <div class="header-inner">
-      <div class="brand-block">
-        <img src="logo.png" alt="De Rentmeester Assistent logo" class="brand-logo" />
-        <div class="brand-text">
-          <h1 class="brand-title">Rentmeester Assistent</h1>
-        </div>
-      </div>
-      <div class="header-badge">Help</div>
+  <header class="topbar">
+    <div class="topbar-inner header-inner">
+      <a class="brand" href="landing.html" aria-label="Terug naar de landingspagina">
+        <img src="logo-mark.png" alt="De Rentmeester Assistent">
+        <strong>De Rentmeester <span>Assistent</span></strong>
+      </a>
+      <div class="header-badge">Stappenplan</div>
     </div>
   </header>
 
@@ -460,7 +701,7 @@
       </div>
 
       <div class="footer-right">
-        <a href="help.html" class="footer-link">Help</a>
+        <a href="index.html" class="footer-link">Terug naar mapgenerator</a>
       </div>
     </div>
 

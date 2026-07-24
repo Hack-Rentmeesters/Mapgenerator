@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Rentmeester Assistent</title>
+  <title>Rentmeester Assistent - Offerte</title>
 
   <link
     rel="stylesheet"
@@ -445,6 +445,47 @@
       font-style: italic;
     }
 
+
+    .parcel-cluster-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .parcel-cluster-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 120px;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .parcel-cluster-code {
+      font-size: 13px;
+      font-weight: 700;
+      color: #314A38;
+      overflow-wrap: anywhere;
+    }
+    .parcel-cluster-input {
+      width: 100%;
+      min-height: 38px;
+      padding: 8px 10px;
+      border: 1px solid var(--border-strong);
+      border-radius: 9px;
+      font: inherit;
+      color: var(--text);
+      background: #fff;
+    }
+    .parcel-cluster-input:focus {
+      outline: none;
+      border-color: var(--brand-dark);
+      box-shadow: 0 0 0 3px rgba(15,43,27,.12);
+    }
+
     .action-buttons {
       display: flex;
       flex-direction: column;
@@ -651,6 +692,58 @@
       to {
         opacity: 1;
       }
+    }
+
+
+    .parcel-cluster-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .parcel-cluster-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 112px;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #ffffff;
+    }
+
+    .parcel-cluster-code {
+      min-width: 0;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.35;
+      color: #183021;
+      overflow-wrap: anywhere;
+    }
+
+    .parcel-cluster-input {
+      width: 100%;
+      min-height: 40px;
+      padding: 8px 10px;
+      border: 1px solid var(--border-strong);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .parcel-cluster-input:focus {
+      border-color: var(--brand-dark);
+      box-shadow: 0 0 0 3px rgba(15,43,27,.12);
+    }
+
+    @media (max-width: 460px) {
+      .parcel-cluster-item { grid-template-columns: 1fr; }
     }
 
     .hidden {
@@ -1118,8 +1211,8 @@
         <strong>De Rentmeester <span>Assistent</span></strong>
       </a>
       <div class="header-actions">
-        <a href="index.html" class="header-nav-btn active">Situatietekening / Factsheet</a>
-        <a href="offerte.html" class="header-nav-btn">Offerte</a>
+        <a href="index.html" class="header-nav-btn">Situatietekening / Factsheet</a>
+        <a href="offerte.html" class="header-nav-btn active">Offerte</a>
         <a href="georefereren.html" class="header-nav-btn">Georefereren</a>
       </div>
     </div>
@@ -1136,10 +1229,6 @@
           autocomplete="off"
         />
         <div id="suggestions" class="suggestions"></div>
-      </div>
-
-      <div class="toolbar-link-wrap">
-        <a href="help.html" class="toolbar-link">Stappenplan</a>
       </div>
     </div>
 
@@ -1186,15 +1275,6 @@
           </div>
 
           <div class="sidebar-content">
-            <div class="field-group hidden" id="clusterGroup">
-              <label for="clusterChoice">Weergave meerdere percelen</label>
-              <select id="clusterChoice">
-                <option value="">-- Kies een optie --</option>
-                <option value="ja">Alle geselecteerde percelen op één tekening</option>
-                <option value="nee">Elk perceel op een aparte tekening</option>
-              </select>
-            </div>
-
             <div class="stats-grid">
               <div class="stat-card">
                 <div class="stat-label">Oppervlakte m²</div>
@@ -1208,9 +1288,13 @@
 
             <div class="info-box">
               <div class="parcel-list">
-                <div class="parcel-list-title">Geselecteerde percelen</div>
+                <div class="parcel-list-title">Percelen en clusternummers</div>
                 <div id="selectedParcelCodes" class="parcel-empty">Geen percelen geselecteerd</div>
               </div>
+            </div>
+
+            <div class="info-box">
+              Selecteer één of meerdere percelen op de kaart en vul daarna per perceel een clusternummer in. Het nummer wordt in de GeoJSON opgeslagen als <strong>Clusternummer</strong>.
             </div>
 
             <div class="action-buttons">
@@ -1447,8 +1531,6 @@
     const areaHaEl = document.getElementById('areaHa');
     const runBtn = document.getElementById('runBtn');
     const selectedParcelCodesEl = document.getElementById('selectedParcelCodes');
-    const clusterGroupEl = document.getElementById('clusterGroup');
-    const clusterChoiceEl = document.getElementById('clusterChoice');
     const importGeojsonBtn = document.getElementById('importGeojsonBtn');
     const geojsonFileInput = document.getElementById('geojsonFileInput');
 
@@ -1758,20 +1840,6 @@
       return layers;
     }
 
-    function getClusterChoiceForExport(count) {
-      if (count > 1) {
-        return clusterChoiceEl.value || '';
-      }
-      return 'nee';
-    }
-
-    function getIsClusterForExport(count) {
-      if (count > 1) {
-        return clusterChoiceEl.value === 'ja';
-      }
-      return false;
-    }
-
     function isPartialParcel(feature) {
       return !!feature?.properties?._partialParcel;
     }
@@ -1796,8 +1864,7 @@
       return {
         ...props,
         oppervlakte_m2: area,
-        is_cluster: getIsClusterForExport(count),
-        cluster_keuze: getClusterChoiceForExport(count),
+        Clusternummer: props.Clusternummer ?? null,
         perceel_deel: getPerceelDeelLabel(feature),
         is_gedeeltelijk: isPartialParcel(feature)
       };
@@ -1826,8 +1893,6 @@
 
       return {
         type: 'FeatureCollection',
-        is_cluster: getIsClusterForExport(count),
-        cluster_keuze: getClusterChoiceForExport(count),
         aantal_objecten: count,
         totale_oppervlakte_m2: totalArea,
         features: exportFeatures
@@ -1908,6 +1973,19 @@
       return label;
     }
 
+    function setFeatureClusterNumber(selectionKey, rawValue) {
+      editableLayers.eachLayer(layer => {
+        const feature = getLayerFeature(layer);
+        if (!feature || getFeatureKey(feature) !== selectionKey) return;
+
+        if (!layer.feature) layer.feature = feature;
+        if (!layer.feature.properties) layer.feature.properties = {};
+
+        const value = String(rawValue ?? '').trim();
+        layer.feature.properties.Clusternummer = value === '' ? null : (Number.isNaN(Number(value)) ? value : Number(value));
+      });
+    }
+
     function updateSelectedParcelCodes(features) {
       if (!features.length) {
         selectedParcelCodesEl.className = 'parcel-empty';
@@ -1917,26 +1995,29 @@
 
       selectedParcelCodesEl.className = '';
       selectedParcelCodesEl.innerHTML = `
-        <ul class="parcel-items">
-          ${features.map(feature => `<li>${getParcelCodeFromFeature(feature)}</li>`).join('')}
+        <ul class="parcel-cluster-list">
+          ${features.map(feature => {
+            const key = escapeHtml(getFeatureKey(feature));
+            const cluster = feature?.properties?.Clusternummer ?? '';
+            return `
+              <li class="parcel-cluster-item">
+                <div class="parcel-cluster-code">${escapeHtml(getParcelCodeFromFeature(feature))}</div>
+                <input class="parcel-cluster-input" type="number" min="0" max="10" step="1" value="${escapeHtml(cluster)}" data-selection-key="${key}" placeholder="Cluster" aria-label="Clusternummer voor ${escapeHtml(getParcelCodeFromFeature(feature))}">
+              </li>`;
+          }).join('')}
         </ul>
       `;
-    }
 
-    function updateClusterFieldVisibility(count) {
-      if (count > 1) {
-        clusterGroupEl.classList.remove('hidden');
-      } else {
-        clusterGroupEl.classList.add('hidden');
-        clusterChoiceEl.value = '';
-      }
+      selectedParcelCodesEl.querySelectorAll('.parcel-cluster-input').forEach(input => {
+        input.addEventListener('input', function () {
+          setFeatureClusterNumber(this.dataset.selectionKey, this.value);
+        });
+      });
     }
 
     function updateInfoFromSelection() {
       const fc = getSelectedFeatureCollection();
       const count = fc.features.length;
-
-      updateClusterFieldVisibility(count);
 
       if (!count) {
         areaM2El.textContent = '-';
@@ -2956,8 +3037,6 @@
       clearEditableLayers();
     });
 
-    clusterChoiceEl.addEventListener('change', function () {
-    });
 
     importGeojsonBtn.addEventListener('click', function () {
       geojsonFileInput.click();
@@ -3029,16 +3108,21 @@
     }, 0);
 
     runBtn.addEventListener('click', function () {
-      const featureCount = getSelectedFeatureCollection().features.length;
-      const clusterChoice = clusterChoiceEl.value;
+      const selectedFeatures = getSelectedFeatureCollection().features;
+      const featureCount = selectedFeatures.length;
 
       if (!featureCount) {
         alert('Selecteer minimaal één perceel');
         return;
       }
 
-      if (featureCount > 1 && !clusterChoice) {
-        alert('Vul alle velden in');
+      const missingCluster = selectedFeatures.some(feature => {
+        const value = feature?.properties?.Clusternummer;
+        return value === null || value === undefined || String(value).trim() === '';
+      });
+
+      if (missingCluster) {
+        alert('Vul voor ieder perceel een clusternummer in.');
         return;
       }
 
