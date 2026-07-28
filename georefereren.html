@@ -505,6 +505,81 @@
       word-break: break-word;
     }
 
+    .overlay-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .overlay-list-empty {
+      padding: 12px;
+      border: 1px dashed var(--border-strong);
+      border-radius: 12px;
+      background: #FAFBF7;
+      color: var(--text-soft);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .overlay-list-item {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      cursor: pointer;
+      transition: 0.18s ease;
+    }
+
+    .overlay-list-item:hover {
+      border-color: #BFCDB7;
+      background: #F8FAF5;
+    }
+
+    .overlay-list-item.active {
+      border-color: var(--brand-dark);
+      box-shadow: 0 0 0 3px rgba(15, 43, 27, 0.10);
+    }
+
+    .overlay-visibility {
+      width: 18px;
+      height: 18px;
+      min-height: unset !important;
+      margin: 0;
+      accent-color: var(--brand-dark);
+      cursor: pointer;
+    }
+
+    .overlay-item-text {
+      min-width: 0;
+    }
+
+    .overlay-item-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    .overlay-item-meta {
+      margin-top: 3px;
+      font-size: 11px;
+      color: var(--text-soft);
+    }
+
+    .overlay-remove-btn {
+      min-height: 34px !important;
+      padding: 7px 9px !important;
+      border-radius: 9px !important;
+      font-size: 12px !important;
+      box-shadow: none !important;
+    }
+
     .stats-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -1122,7 +1197,7 @@
         <div class="sidebar-header"><div class="section-title">Georefereren</div></div>
         <div class="sidebar-content">
           <div class="field-group">
-            <label for="imageFileInput">Afbeelding uploaden (JPG / PNG / PDF)</label>
+            <label for="imageFileInput">Afbeelding toevoegen (JPG / PNG / PDF)</label>
             <input
               type="file"
               id="imageFileInput"
@@ -1130,15 +1205,21 @@
               accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
             />
             <div class="file-upload-wrap">
-              <label for="imageFileInput" class="file-upload-btn">Bestand kiezen</label>
+              <label for="imageFileInput" class="file-upload-btn">Nieuwe afbeelding kiezen</label>
               <div id="fileName" class="file-name">Nog geen bestand gekozen</div>
             </div>
           </div>
 
           <div class="field-group hidden" id="overlayOpacityGroup">
-            <label for="overlayOpacity">Transparantie</label>
+            <label for="overlayOpacity">Transparantie geselecteerde afbeelding</label>
             <input type="range" id="overlayOpacity" min="0.1" max="1" step="0.05" value="0.35" />
-            <div class="helper-text">Pas de zichtbaarheid van de overlay aan.</div>
+            <div class="helper-text">Klik hieronder op een geplaatste afbeelding om de transparantie daarvan aan te passen.</div>
+          </div>
+
+          <div class="field-group hidden" id="overlayListGroup">
+            <label>Geplaatste afbeeldingen</label>
+            <div id="overlayList" class="overlay-list"></div>
+            <div class="helper-text">Je kunt afbeeldingen afzonderlijk tonen, verbergen, selecteren of verwijderen.</div>
           </div>
 
           <div class="field-group hidden" id="bufferToggleGroup">
@@ -1199,7 +1280,7 @@
           <div class="info-box">
             <strong>Werkwijze</strong><br />
             Upload of sleep een afbeelding/PDF, kies 4 punten op de afbeelding en dezelfde 4 punten op de kaart.
-            Klik daarna op <strong>Georefereren</strong>. Teken vervolgens lijnen of polygonen en exporteer via <strong>RUN</strong>.
+            Klik daarna op <strong>Georefereren</strong>. De overlay blijft staan, zodat je daarna een volgende afbeelding kunt toevoegen en erbovenop kunt georefereren. Teken vervolgens lijnen of polygonen en exporteer via <strong>RUN</strong>.
           </div>
 
           <div class="button-stack">
@@ -1287,6 +1368,8 @@
     const overlayOpacityEl = document.getElementById('overlayOpacity');
     const lineBufferInputEl = document.getElementById('lineBufferInput');
     const overlayOpacityGroupEl = document.getElementById('overlayOpacityGroup');
+    const overlayListGroupEl = document.getElementById('overlayListGroup');
+    const overlayListEl = document.getElementById('overlayList');
     const lineBufferGroupEl = document.getElementById('lineBufferGroup');
     const bufferToggleGroupEl = document.getElementById('bufferToggleGroup');
     const bufferEnabledEl = document.getElementById('bufferEnabled');
@@ -1304,7 +1387,13 @@
     let imagePoints = [];
     let mapPoints = [];
     let mapPointMarkers = [];
-    let overlayImage = null;
+
+    // Iedere georefereerde afbeelding krijgt een eigen Leaflet-overlay.
+    // Zo blijven eerder geplaatste afbeeldingen zichtbaar wanneer een nieuw bestand wordt geladen.
+    let overlayImages = [];
+    let selectedOverlayId = null;
+    let currentGeoreferencedOverlayId = null;
+    let overlayIdCounter = 1;
 
     let imageView = {
       scale: 1,
@@ -1521,7 +1610,10 @@
     }
 
     function updateConditionalFields() {
-      overlayOpacityGroupEl.classList.toggle('hidden', !overlayImage);
+      const hasOverlays = overlayImages.length > 0;
+      const hasSelectedOverlay = !!getSelectedOverlayEntry();
+      overlayOpacityGroupEl.classList.toggle('hidden', !hasSelectedOverlay);
+      overlayListGroupEl.classList.toggle('hidden', !hasOverlays);
 
       const polylinePresent = hasPolyline();
       bufferToggleGroupEl.classList.toggle('hidden', !polylinePresent);
@@ -2198,11 +2290,142 @@
       updateStatus();
     }
 
-    function clearOverlay() {
-      if (overlayImage) {
-        map.removeLayer(overlayImage);
-        overlayImage = null;
+    function getSelectedOverlayEntry() {
+      return overlayImages.find(entry => entry.id === selectedOverlayId) || null;
+    }
+
+    function selectOverlay(id) {
+      const entry = overlayImages.find(item => item.id === id);
+      if (!entry) return;
+
+      selectedOverlayId = id;
+      overlayOpacityEl.value = String(entry.opacity);
+      renderOverlayList();
+      updateConditionalFields();
+    }
+
+    function setOverlayVisibility(entry, visible) {
+      if (!entry || !entry.layer) return;
+
+      entry.visible = visible;
+
+      /*
+        DistortableImageOverlay kan na map.removeLayer() niet altijd betrouwbaar
+        opnieuw aan dezelfde kaart worden toegevoegd. Daarom blijft de laag op
+        de kaart staan en verbergen we hem door de opacity tijdelijk op 0 te zetten.
+      */
+      if (!map.hasLayer(entry.layer)) {
+        entry.layer.addTo(map);
       }
+
+      if (entry.layer.setOpacity) {
+        entry.layer.setOpacity(visible ? entry.opacity : 0);
+      }
+    }
+
+    function removeOverlayById(id) {
+      const index = overlayImages.findIndex(entry => entry.id === id);
+      if (index === -1) return;
+
+      const [removed] = overlayImages.splice(index, 1);
+      if (removed.layer && map.hasLayer(removed.layer)) {
+        map.removeLayer(removed.layer);
+      }
+
+      if (currentGeoreferencedOverlayId === id) {
+        currentGeoreferencedOverlayId = null;
+      }
+
+      if (selectedOverlayId === id) {
+        selectedOverlayId = overlayImages.length
+          ? overlayImages[overlayImages.length - 1].id
+          : null;
+      }
+
+      const selected = getSelectedOverlayEntry();
+      if (selected) overlayOpacityEl.value = String(selected.opacity);
+
+      renderOverlayList();
+      updateConditionalFields();
+      statusPillEl.textContent = overlayImages.length
+        ? `${overlayImages.length} afbeelding(en) geplaatst`
+        : (uploadedImageUrl ? 'Klik 4 punten op de afbeelding' : 'Wacht op afbeelding');
+    }
+
+    function renderOverlayList() {
+      overlayListEl.innerHTML = '';
+
+      if (!overlayImages.length) {
+        const empty = document.createElement('div');
+        empty.className = 'overlay-list-empty';
+        empty.textContent = 'Nog geen afbeeldingen op de kaart geplaatst.';
+        overlayListEl.appendChild(empty);
+        return;
+      }
+
+      overlayImages.forEach((entry, index) => {
+        const item = document.createElement('div');
+        item.className = 'overlay-list-item';
+        item.classList.toggle('active', entry.id === selectedOverlayId);
+        item.title = 'Klik om deze afbeelding te selecteren';
+
+        const visibility = document.createElement('input');
+        visibility.type = 'checkbox';
+        visibility.className = 'overlay-visibility';
+        visibility.checked = entry.visible;
+        visibility.title = entry.visible ? 'Afbeelding verbergen' : 'Afbeelding tonen';
+        visibility.addEventListener('click', event => event.stopPropagation());
+        visibility.addEventListener('change', function () {
+          setOverlayVisibility(entry, this.checked);
+          renderOverlayList();
+        });
+
+        const textWrap = document.createElement('div');
+        textWrap.className = 'overlay-item-text';
+
+        const name = document.createElement('div');
+        name.className = 'overlay-item-name';
+        name.textContent = entry.name || `Afbeelding ${index + 1}`;
+
+        const meta = document.createElement('div');
+        meta.className = 'overlay-item-meta';
+        meta.textContent = `Afbeelding ${index + 1} · ${Math.round(entry.opacity * 100)}% zichtbaar`;
+
+        textWrap.appendChild(name);
+        textWrap.appendChild(meta);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'overlay-remove-btn';
+        removeBtn.textContent = 'Verwijder';
+        removeBtn.addEventListener('click', function (event) {
+          event.stopPropagation();
+          removeOverlayById(entry.id);
+        });
+
+        item.addEventListener('click', function () {
+          selectOverlay(entry.id);
+        });
+
+        item.appendChild(visibility);
+        item.appendChild(textWrap);
+        item.appendChild(removeBtn);
+        overlayListEl.appendChild(item);
+      });
+    }
+
+    function clearAllOverlays() {
+      overlayImages.forEach(entry => {
+        if (entry.layer && map.hasLayer(entry.layer)) {
+          map.removeLayer(entry.layer);
+        }
+      });
+
+      overlayImages = [];
+      selectedOverlayId = null;
+      currentGeoreferencedOverlayId = null;
+      overlayIdCounter = 1;
+      renderOverlayList();
     }
 
     function clearDrawings() {
@@ -2216,7 +2439,7 @@
     function resetAll() {
       clearImagePoints();
       clearMapPoints();
-      clearOverlay();
+      clearAllOverlays();
       clearDrawings();
 
       addressInputEl.value = '';
@@ -2434,17 +2657,41 @@
           createLatLngFromProjected(bottomRight)
         ];
 
-        clearOverlay();
+        let entry = overlayImages.find(item => item.id === currentGeoreferencedOverlayId);
+        const opacity = entry ? entry.opacity : 0.35;
 
-        overlayImage = new L.DistortableImageOverlay(uploadedImageUrl, {
+        const newLayer = new L.DistortableImageOverlay(uploadedImageUrl, {
           corners: corners,
           editable: false,
           selected: false,
           suppressToolbar: true,
-          opacity: parseFloat(overlayOpacityEl.value)
+          opacity: opacity
         }).addTo(map);
 
-        statusPillEl.textContent = 'Overlay geplaatst';
+        if (entry) {
+          if (entry.layer && map.hasLayer(entry.layer)) {
+            map.removeLayer(entry.layer);
+          }
+          entry.layer = newLayer;
+          entry.name = uploadedImageName || entry.name;
+          entry.opacity = opacity;
+          entry.visible = true;
+        } else {
+          entry = {
+            id: `overlay-${overlayIdCounter++}`,
+            name: uploadedImageName || `Afbeelding ${overlayImages.length + 1}`,
+            layer: newLayer,
+            opacity: opacity,
+            visible: true
+          };
+          overlayImages.push(entry);
+          currentGeoreferencedOverlayId = entry.id;
+        }
+
+        selectedOverlayId = entry.id;
+        overlayOpacityEl.value = String(entry.opacity);
+        renderOverlayList();
+        statusPillEl.textContent = `Afbeelding ${overlayImages.length} geplaatst. Je kunt nu een volgende afbeelding uploaden.`;
         updateConditionalFields();
       } catch (err) {
         console.error(err);
@@ -2469,8 +2716,10 @@
 
           clearImagePoints();
           clearMapPoints();
-          clearOverlay();
+          currentGeoreferencedOverlayId = null;
 
+          // Bestaande overlays blijven op de kaart staan.
+          // Deze nieuwe upload krijgt een eigen set referentiepunten.
           fitImageToStage();
           updateStatus();
           updateConditionalFields();
@@ -2618,7 +2867,12 @@
 
     imageFileInputEl.addEventListener('change', async function (e) {
       const file = e.target.files && e.target.files[0];
-      await handleSelectedFile(file);
+      try {
+        await handleSelectedFile(file);
+      } finally {
+        // Hierdoor kan hetzelfde bestand later opnieuw worden gekozen.
+        e.target.value = '';
+      }
     });
 
     function hasDraggedFiles(e) {
@@ -2817,9 +3071,14 @@
     });
 
     overlayOpacityEl.addEventListener('input', function () {
-      if (overlayImage && overlayImage.setOpacity) {
-        overlayImage.setOpacity(parseFloat(overlayOpacityEl.value));
+      const entry = getSelectedOverlayEntry();
+      if (!entry) return;
+
+      entry.opacity = parseFloat(overlayOpacityEl.value);
+      if (entry.layer && entry.layer.setOpacity) {
+        entry.layer.setOpacity(entry.visible ? entry.opacity : 0);
       }
+      renderOverlayList();
     });
 
     clearImagePointsBtn.addEventListener('click', function () {
@@ -2852,6 +3111,7 @@
       }
     });
 
+    renderOverlayList();
     updateStatus();
     updateParcelLayerStyle();
     updateConditionalFields();
