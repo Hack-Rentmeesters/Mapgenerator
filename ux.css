@@ -436,9 +436,8 @@
   color: var(--ux-green-dark);
   font-size: 16px;
   font-weight: 900;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .ux-recent-meta {
@@ -465,6 +464,43 @@
   border: 1px solid #DCE7D4;
   font-size: 10px;
   font-weight: 900;
+}
+
+.ux-recent-button-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ux-delete-btn {
+  min-height: 38px;
+  padding: 9px 12px;
+  border: 1px solid #D9B8B8;
+  border-radius: 11px;
+  background: #FFF9F9;
+  color: #8A2F2F;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease, transform .16s ease;
+}
+
+.ux-delete-btn:hover {
+  transform: translateY(-1px);
+  border-color: #C98F8F;
+  background: #FFF0F0;
+}
+
+.ux-delete-btn:focus-visible {
+  outline: 3px solid rgba(163,49,49,.18);
+  outline-offset: 2px;
+}
+
+.ux-delete-btn:disabled {
+  cursor: wait;
+  opacity: .65;
+  transform: none;
 }
 
 .ux-empty-recent {
@@ -499,4 +535,7 @@
   .ux-modal-actions button { width: 100%; }
   .ux-recent-grid { grid-template-columns: 1fr; }
   .ux-recent-head { align-items: stretch; flex-direction: column; }
+  .ux-recent-actions { align-items: flex-start; flex-direction: column; }
+  .ux-recent-button-group { width: 100%; }
+  .ux-recent-button-group button { flex: 1; }
 }

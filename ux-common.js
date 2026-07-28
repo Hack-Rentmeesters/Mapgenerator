@@ -3,6 +3,8 @@
 
   const PROJECTS_KEY = 'ra_projects_v2';
   const CURRENT_PROJECT_KEY = 'ra_current_project_v2';
+  const DB_NAME = 'rentmeester_assistent_v2';
+  const DB_STORE = 'tool_states';
 
   const TOOL_LABELS = {
     situatietekening: 'Situatietekening / Factsheet',
@@ -38,15 +40,15 @@
 
   function stableStringify(value) {
     const seen = new WeakSet();
-    const sorter = (input) => {
+    const sorter = input => {
       if (input === null || typeof input !== 'object') return input;
       if (seen.has(input)) return '[Circular]';
       seen.add(input);
       if (Array.isArray(input)) return input.map(sorter);
-      return Object.keys(input).sort().reduce((acc, key) => {
-        const v = input[key];
-        if (typeof v !== 'function' && typeof v !== 'undefined') acc[key] = sorter(v);
-        return acc;
+      return Object.keys(input).sort().reduce((result, key) => {
+        const item = input[key];
+        if (typeof item !== 'function' && typeof item !== 'undefined') result[key] = sorter(item);
+        return result;
       }, {});
     };
     return JSON.stringify(sorter(value));
@@ -73,14 +75,21 @@
   }
 
   function writeProjects(projects) {
-    localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects.slice(0, 25)));
+    try {
+      localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects.slice(0, 25)));
+    } catch (err) {
+      console.error('Projectoverzicht kon niet worden bewaard.', err);
+    }
   }
 
   function createProject(input) {
     const createdAt = nowIso();
+    const toolKey = (input && input.toolKey) || 'situatietekening';
     const project = {
       id: uid(),
-      lastTool: (input && input.toolKey) || 'situatietekening',
+      title: toolKey === 'georefereren' ? 'Georefereren' : 'Nog geen perceel geselecteerd',
+      itemCount: 0,
+      lastTool: toolKey,
       createdAt,
       modifiedAt: createdAt,
       lastRunAt: null
@@ -98,13 +107,15 @@
     let project = projects.find(item => item.id === currentId);
 
     if (!project) {
-      project = createProject({ toolKey: toolKey || 'situatietekening' });
-      return project;
+      return createProject({ toolKey: toolKey || 'situatietekening' });
     }
 
     if (toolKey && project.lastTool !== toolKey) {
-      project.lastTool = toolKey;
-      project.modifiedAt = nowIso();
+      project = {
+        ...project,
+        lastTool: toolKey,
+        modifiedAt: nowIso()
+      };
       writeProjects([project, ...projects.filter(item => item.id !== project.id)]);
     }
     return project;
@@ -114,11 +125,13 @@
     const projects = readProjects();
     const index = projects.findIndex(item => item.id === projectId);
     if (index === -1) return null;
+
     const next = {
       ...projects[index],
-      ...patch,
+      ...(patch || {}),
       modifiedAt: patch && patch.modifiedAt ? patch.modifiedAt : nowIso()
     };
+
     projects.splice(index, 1);
     projects.unshift(next);
     writeProjects(projects);
@@ -133,10 +146,14 @@
     if (!value) return 'Datum onbekend';
     try {
       return new Intl.DateTimeFormat('nl-NL', {
-        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
       }).format(new Date(value));
     } catch (err) {
-      return value;
+      return String(value);
     }
   }
 
@@ -144,11 +161,106 @@
     if (!value) return 'Datum onbekend';
     try {
       return new Intl.DateTimeFormat('nl-NL', {
-        day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
       }).format(new Date(value));
     } catch (err) {
       return formatDateTime(value);
     }
+  }
+
+  function openDatabase() {
+    return new Promise((resolve, reject) => {
+      if (!('indexedDB' in window)) {
+        reject(new Error('IndexedDB wordt niet ondersteund.'));
+        return;
+      }
+
+      const request = indexedDB.open(DB_NAME, 1);
+      request.onupgradeneeded = function () {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error || new Error('Lokale opslag kon niet worden geopend.'));
+    });
+  }
+
+  async function dbGet(key) {
+    try {
+      const db = await openDatabase();
+      return await new Promise((resolve, reject) => {
+        const transaction = db.transaction(DB_STORE, 'readonly');
+        const request = transaction.objectStore(DB_STORE).get(key);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error);
+        transaction.oncomplete = () => db.close();
+      });
+    } catch (err) {
+      try {
+        return JSON.parse(localStorage.getItem(`ra_state_${key}`) || 'null');
+      } catch (fallbackError) {
+        return null;
+      }
+    }
+  }
+
+  async function dbSet(key, value) {
+    try {
+      const db = await openDatabase();
+      await new Promise((resolve, reject) => {
+        const transaction = db.transaction(DB_STORE, 'readwrite');
+        transaction.objectStore(DB_STORE).put(value, key);
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error);
+      });
+      db.close();
+    } catch (err) {
+      localStorage.setItem(`ra_state_${key}`, JSON.stringify(value));
+    }
+  }
+
+  async function dbDelete(key) {
+    try {
+      const db = await openDatabase();
+      await new Promise((resolve, reject) => {
+        const transaction = db.transaction(DB_STORE, 'readwrite');
+        transaction.objectStore(DB_STORE).delete(key);
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error);
+      });
+      db.close();
+    } catch (err) {
+      // De fallback-opslag kan ook bestaan wanneer IndexedDB eerder niet beschikbaar was.
+    }
+
+    try {
+      localStorage.removeItem(`ra_state_${key}`);
+    } catch (err) {}
+  }
+
+  async function deleteProject(projectId) {
+    if (!projectId) return false;
+
+    const projects = readProjects();
+    const project = projects.find(item => item.id === projectId);
+    if (!project) return false;
+
+    const remaining = projects.filter(item => item.id !== projectId);
+    writeProjects(remaining);
+
+    if (localStorage.getItem(CURRENT_PROJECT_KEY) === projectId) {
+      localStorage.removeItem(CURRENT_PROJECT_KEY);
+    }
+
+    await Promise.all(
+      Object.keys(TOOL_URLS).map(toolKey => dbDelete(`${projectId}:${toolKey}`))
+    );
+
+    return true;
   }
 
   function ensureToastRoot() {
@@ -164,7 +276,7 @@
     const text = String(message || '').toLowerCase();
     if (/mislukt|fout|geen geldig|selecteer|vul|kon niet|ontbreekt/.test(text)) return 'error';
     if (/waarschuwing|let op/.test(text)) return 'warning';
-    if (/gereed|gedownload|succes|ongedaan|opnieuw/.test(text)) return 'success';
+    if (/gereed|hersteld|gedownload|succes/.test(text)) return 'success';
     return 'info';
   }
 
@@ -177,12 +289,14 @@
       <div>${escapeHtml(message)}</div>
       <button type="button" class="ux-toast-close" aria-label="Melding sluiten">×</button>
     `;
+
     const remove = () => {
       if (!toast.isConnected) return;
       toast.style.opacity = '0';
       toast.style.transform = 'translateY(-5px)';
       setTimeout(() => toast.remove(), 160);
     };
+
     toast.querySelector('.ux-toast-close').addEventListener('click', remove);
     root.appendChild(toast);
     setTimeout(remove, duration || 4800);
@@ -214,6 +328,7 @@
         <div class="ux-modal-actions"></div>
       </section>
     `;
+
     const body = modalBackdrop.querySelector('.ux-modal-body');
     if (typeof options.body === 'string') body.innerHTML = options.body;
     else if (options.body instanceof Node) body.appendChild(options.body);
@@ -236,10 +351,12 @@
       if (event.target === modalBackdrop) closeModal();
     });
     document.body.appendChild(modalBackdrop);
+
     setTimeout(() => {
       const focusTarget = modalBackdrop.querySelector('input, select, button');
       if (focusTarget) focusTarget.focus();
     }, 0);
+
     return modalBackdrop;
   }
 
@@ -257,6 +374,7 @@
         `).join('')}
       </nav>
     `;
+
     if (header) header.insertAdjacentElement('afterend', shell);
     else document.body.insertAdjacentElement('afterbegin', shell);
     return shell;
@@ -270,6 +388,7 @@
     } catch (err) {
       checks = [];
     }
+
     checks = Array.isArray(checks) ? checks.slice() : [];
     checks.push(!!(context.reviewOpen || context.runComplete));
 
@@ -303,7 +422,7 @@
     if (!context.validationPanel) return;
     context.validationPanel.classList.remove('is-visible');
     context.validationPanel.innerHTML = '';
-    document.querySelectorAll('.ux-invalid').forEach(el => el.classList.remove('ux-invalid'));
+    document.querySelectorAll('.ux-invalid').forEach(element => element.classList.remove('ux-invalid'));
   }
 
   function showValidation(context, errors) {
@@ -314,11 +433,13 @@
       <ul class="ux-validation-list">${normalized.map(item => `<li>${escapeHtml(item.message)}</li>`).join('')}</ul>
     `;
     context.validationPanel.classList.add('is-visible');
+
     normalized.forEach(item => {
       if (!item.selector) return;
       const target = document.querySelector(item.selector);
       if (target) target.classList.add('ux-invalid');
     });
+
     const first = normalized.find(item => item.selector && document.querySelector(item.selector));
     if (first) {
       const target = document.querySelector(first.selector);
@@ -343,22 +464,86 @@
     `;
   }
 
+  async function captureState(context, force) {
+    if (!context || context.applyingState) return;
+
+    if (context.captureBusy) {
+      if (context.capturePromise) await context.capturePromise;
+      if (force) return captureState(context, true);
+      return;
+    }
+
+    context.captureBusy = true;
+    context.capturePromise = (async () => {
+      try {
+        const hashSource = context.config.adapter.getStateHash
+          ? context.config.adapter.getStateHash()
+          : context.config.adapter.getState();
+        const hash = stableStringify(hashSource);
+
+        if (!force && hash === context.lastHash) {
+          updateStepper(context);
+          return;
+        }
+
+        const state = cloneState(await context.config.adapter.getState());
+        await dbSet(context.storageKey, state);
+        context.lastHash = hash;
+
+        let title = context.project.title;
+        let itemCount = context.project.itemCount || 0;
+
+        if (typeof context.config.adapter.getProjectTitle === 'function') {
+          title = context.config.adapter.getProjectTitle() || title;
+        }
+        if (typeof context.config.adapter.getProjectItemCount === 'function') {
+          itemCount = Number(context.config.adapter.getProjectItemCount()) || 0;
+        }
+
+        context.project = updateProject(context.project.id, {
+          title,
+          itemCount,
+          lastTool: context.config.toolKey
+        }) || context.project;
+
+        updateStepper(context);
+      } catch (err) {
+        console.error('Projectgegevens konden niet worden bewaard.', err);
+        if (!context.storageErrorShown) {
+          context.storageErrorShown = true;
+          notify('Projectgegevens konden niet worden bewaard in deze browser.', 'error');
+        }
+      }
+    })();
+
+    try {
+      await context.capturePromise;
+    } finally {
+      context.captureBusy = false;
+      context.capturePromise = null;
+    }
+  }
+
   async function showReview(context) {
     clearValidation(context);
     let errors = [];
+
     try {
       errors = context.config.adapter.validate ? context.config.adapter.validate() : [];
     } catch (err) {
       errors = [{ message: err.message || 'De invoer kon niet worden gecontroleerd.' }];
     }
+
     if (errors && errors.length) {
       showValidation(context, errors);
       notify('Er ontbreken nog gegevens. Controleer de gemarkeerde onderdelen.', 'error');
       return;
     }
 
+    await captureState(context, true);
     context.reviewOpen = true;
     updateStepper(context);
+
     const summary = context.config.adapter.getSummary
       ? context.config.adapter.getSummary(context.project)
       : { rows: [] };
@@ -379,6 +564,7 @@
               primary.disabled = true;
               primary.textContent = 'Bezig…';
             }
+
             try {
               await context.config.adapter.run();
               context.runComplete = true;
@@ -386,6 +572,7 @@
                 lastTool: context.config.toolKey,
                 lastRunAt: nowIso()
               }) || context.project;
+              await captureState(context, true);
               closeModal();
               updateStepper(context);
               notify(context.config.successMessage || 'Het bestand is gemaakt en wordt gedownload.', 'success');
@@ -402,6 +589,34 @@
     });
   }
 
+  function isInternalHtmlLink(link) {
+    if (!link || !link.href || link.target === '_blank' || link.hasAttribute('download')) return false;
+    if (link.getAttribute('href').startsWith('#')) return false;
+
+    try {
+      const url = new URL(link.href, window.location.href);
+      const current = new URL(window.location.href);
+      return url.protocol === current.protocol &&
+        url.host === current.host &&
+        /\.html(?:$|[?#])/i.test(url.href);
+    } catch (err) {
+      return false;
+    }
+  }
+
+  function bindInternalNavigation(context) {
+    document.addEventListener('click', async event => {
+      if (context.navigating || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = event.target.closest && event.target.closest('a[href]');
+      if (!isInternalHtmlLink(link)) return;
+
+      event.preventDefault();
+      context.navigating = true;
+      await captureState(context, true);
+      window.location.href = link.href;
+    }, true);
+  }
+
   async function initTool(config) {
     const project = getCurrentProject(config.toolKey);
     const shell = buildWorkspace(config);
@@ -414,16 +629,23 @@
       shell,
       runButton,
       validationPanel: createValidationPanel(runButton),
+      storageKey: `${project.id}:${config.toolKey}`,
+      lastHash: '',
+      applyingState: false,
+      captureBusy: false,
+      capturePromise: null,
       reviewOpen: false,
       runComplete: false,
-      timer: null
+      storageErrorShown: false,
+      navigating: false,
+      timer: null,
+      debounceTimer: null
     };
     activeContext = context;
 
     window.alert = function (message) {
       notify(String(message || ''), inferToastType(message));
     };
-
 
     if (runButton) {
       runButton.addEventListener('click', event => {
@@ -433,48 +655,192 @@
       }, true);
     }
 
+    const saved = await dbGet(context.storageKey);
+    if (saved) {
+      try {
+        context.applyingState = true;
+        await config.adapter.restoreState(cloneState(saved));
+      } catch (err) {
+        console.error('Project kon niet volledig worden hersteld.', err);
+        notify('Niet alle gegevens van dit project konden worden hersteld.', 'warning');
+      } finally {
+        context.applyingState = false;
+      }
+    }
+
+    const initialHashSource = config.adapter.getStateHash
+      ? config.adapter.getStateHash()
+      : await config.adapter.getState();
+    context.lastHash = stableStringify(initialHashSource);
     updateStepper(context);
 
-    // Houd alleen het voortgangsstappenplan actueel. Er wordt niets opgeslagen.
-    context.timer = setInterval(() => updateStepper(context), config.pollInterval || 900);
+    await captureState(context, true);
 
+    const scheduleCapture = () => {
+      clearTimeout(context.debounceTimer);
+      context.debounceTimer = setTimeout(() => captureState(context, false), 350);
+    };
+
+    document.addEventListener('input', scheduleCapture, true);
+    document.addEventListener('change', scheduleCapture, true);
+    document.addEventListener('pointerup', scheduleCapture, true);
+
+    context.timer = setInterval(() => captureState(context, false), config.pollInterval || 700);
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') captureState(context, true);
+    });
+    window.addEventListener('pagehide', () => captureState(context, true));
+    window.addEventListener('beforeunload', () => captureState(context, true));
+
+    bindInternalNavigation(context);
     return context;
   }
 
-  function renderRecentProjects() {
+  function parcelLabelFromStateFeature(feature) {
+    const props = feature && feature.properties ? feature.properties : {};
+    const gemeente =
+      props.kadastralegemeentenaam ||
+      props.kadastraleGemeenteNaam ||
+      props.kadastraleGemeenteWaarde ||
+      props.gemeentenaam ||
+      props.gemeente ||
+      props.kadastralegemeente ||
+      '';
+    const sectie =
+      props.sectie ||
+      props.kadastralesectie ||
+      props.kadastraleSectie ||
+      props.kadas_sectie ||
+      '';
+    const nummer =
+      props.perceelnummer ||
+      props.kadastraalperceelnummer ||
+      props.kadastraalPerceelnummer ||
+      props.kadas_perceelnummer ||
+      props.perceelNummer ||
+      '';
+
+    if (gemeente && sectie && nummer) return `${gemeente} ${sectie} ${nummer}`;
+
+    return String(
+      props.kadastraleAanduiding ||
+      props.kadastraleaanduiding ||
+      props.label ||
+      nummer ||
+      'Onbekend perceel'
+    );
+  }
+
+  function deriveProjectTitle(project, state) {
+    if (project.lastTool === 'situatietekening' || project.lastTool === 'offerte') {
+      const features = state && state.geojson && Array.isArray(state.geojson.features)
+        ? state.geojson.features
+        : [];
+      if (features.length > 1) return `Cluster (${features.length})`;
+      if (features.length === 1) return parcelLabelFromStateFeature(features[0]);
+      return 'Nog geen perceel geselecteerd';
+    }
+
+    if (project.lastTool === 'georefereren') {
+      const searched = state && typeof state.searchText === 'string' ? state.searchText.trim() : '';
+      if (searched) return searched;
+      const imageName = state && state.currentImage && state.currentImage.name
+        ? String(state.currentImage.name).trim()
+        : '';
+      if (imageName && imageName !== 'georefereren') return imageName.replace(/\.[^.]+$/, '');
+      return 'Georefereren';
+    }
+
+    return project.title || 'Recent project';
+  }
+
+  async function renderRecentProjects() {
     const container = document.getElementById('uxRecentProjects');
     if (!container) return;
+
     const projects = readProjects().slice(0, 6);
     if (!projects.length) {
-      container.innerHTML = '<div class="ux-empty-recent">Nog geen recente projecten. Open een tool om uw gebruiksgeschiedenis hier te zien.</div>';
+      container.innerHTML = '<div class="ux-empty-recent">Nog geen recente projecten. Open een tool en selecteer een perceel.</div>';
       return;
     }
-    container.innerHTML = projects.map(project => `
+
+    container.innerHTML = '<div class="ux-empty-recent">Recente projecten laden…</div>';
+
+    const displayProjects = await Promise.all(projects.map(async project => {
+      const state = await dbGet(`${project.id}:${project.lastTool}`);
+      return {
+        ...project,
+        displayTitle: deriveProjectTitle(project, state)
+      };
+    }));
+
+    const allProjects = readProjects();
+    let metadataChanged = false;
+    displayProjects.forEach(displayProject => {
+      const original = allProjects.find(item => item.id === displayProject.id);
+      if (original && original.title !== displayProject.displayTitle) {
+        original.title = displayProject.displayTitle;
+        metadataChanged = true;
+      }
+    });
+    if (metadataChanged) writeProjects(allProjects);
+
+    container.innerHTML = displayProjects.map(project => `
       <article class="ux-recent-card">
         <div>
-          <h3 class="ux-recent-title">${escapeHtml(formatProjectDate(project.createdAt || project.modifiedAt))}</h3>
+          <h3 class="ux-recent-title">${escapeHtml(project.displayTitle)}</h3>
           <div class="ux-recent-meta">
-            <span>Gebruikt op: ${escapeHtml(formatDateTime(project.modifiedAt || project.createdAt))}</span>
+            <span>Laatst gewijzigd: ${escapeHtml(formatDateTime(project.modifiedAt || project.createdAt))}</span>
           </div>
         </div>
         <div class="ux-recent-actions">
           <span class="ux-tool-badge">${escapeHtml(TOOL_LABELS[project.lastTool] || 'Project')}</span>
-          <button type="button" class="ux-primary-btn" data-open-tool="${escapeHtml(project.lastTool || 'situatietekening')}">Open tool</button>
+          <div class="ux-recent-button-group">
+            <button type="button" class="ux-delete-btn" data-delete-project="${escapeHtml(project.id)}" data-project-title="${escapeHtml(project.displayTitle)}">Verwijder</button>
+            <button type="button" class="ux-primary-btn" data-open-project="${escapeHtml(project.id)}" data-tool="${escapeHtml(project.lastTool || 'situatietekening')}">Open</button>
+          </div>
         </div>
       </article>
     `).join('');
-    container.querySelectorAll('[data-open-tool]').forEach(button => {
+
+    container.querySelectorAll('[data-open-project]').forEach(button => {
       button.addEventListener('click', () => {
-        const toolKey = button.dataset.openTool || 'situatietekening';
-        createProject({ toolKey });
-        window.location.href = TOOL_URLS[toolKey] || 'index.html';
+        setCurrentProject(button.dataset.openProject);
+        window.location.href = TOOL_URLS[button.dataset.tool] || 'index.html';
+      });
+    });
+
+
+    container.querySelectorAll('[data-delete-project]').forEach(button => {
+      button.addEventListener('click', async () => {
+        const projectId = button.dataset.deleteProject;
+        const projectTitle = button.dataset.projectTitle || 'dit project';
+        const confirmed = window.confirm(`Weet je zeker dat je “${projectTitle}” wilt verwijderen? Dit kan niet ongedaan worden gemaakt.`);
+        if (!confirmed) return;
+
+        button.disabled = true;
+        button.textContent = 'Verwijderen…';
+
+        try {
+          await deleteProject(projectId);
+          await renderRecentProjects();
+        } catch (err) {
+          console.error('Recent project kon niet worden verwijderd.', err);
+          notify('Het recente project kon niet worden verwijderd.', 'error');
+          button.disabled = false;
+          button.textContent = 'Verwijder';
+        }
       });
     });
   }
 
   function initLanding() {
     ensureToastRoot();
-    window.alert = function (message) { notify(String(message || ''), inferToastType(message)); };
+    window.alert = function (message) {
+      notify(String(message || ''), inferToastType(message));
+    };
+
     renderRecentProjects();
 
     document.querySelectorAll('a.tool[data-tool-key]').forEach(link => {
@@ -492,6 +858,7 @@
     createProject,
     updateProject,
     setCurrentProject,
+    deleteProject,
     renderRecentProjects,
     escapeHtml,
     formatDateTime,

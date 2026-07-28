@@ -36,6 +36,57 @@
     }
   }
 
+  function getParcelProjectLabel(feature) {
+    if (!feature) return 'Onbekend perceel';
+
+    try {
+      if (typeof getParcelCodeFromFeature === 'function') {
+        const code = getParcelCodeFromFeature(feature);
+        if (code && code !== 'Onbekend perceel') return String(code);
+      }
+    } catch (err) {}
+
+    const props = feature.properties || {};
+    const gemeente =
+      props.kadastralegemeentenaam ||
+      props.kadastraleGemeenteNaam ||
+      props.kadastraleGemeenteWaarde ||
+      props.gemeentenaam ||
+      props.gemeente ||
+      props.kadastralegemeente ||
+      '';
+    const sectie =
+      props.sectie ||
+      props.kadastralesectie ||
+      props.kadastraleSectie ||
+      props.kadas_sectie ||
+      '';
+    const nummer =
+      props.perceelnummer ||
+      props.kadastraalperceelnummer ||
+      props.kadastraalPerceelnummer ||
+      props.kadas_perceelnummer ||
+      props.perceelNummer ||
+      '';
+
+    if (gemeente && sectie && nummer) return `${gemeente} ${sectie} ${nummer}`;
+
+    return String(
+      props.kadastraleAanduiding ||
+      props.kadastraleaanduiding ||
+      props.label ||
+      nummer ||
+      'Onbekend perceel'
+    );
+  }
+
+  function getSelectionProjectTitle(features) {
+    const selected = Array.isArray(features) ? features : [];
+    if (!selected.length) return 'Nog geen perceel geselecteerd';
+    if (selected.length > 1) return `Cluster (${selected.length})`;
+    return getParcelProjectLabel(selected[0]);
+  }
+
   function initSituatietekening() {
     const adapter = {
       getState: function () {
@@ -63,6 +114,12 @@
         clusterChoiceEl.value = state && state.clusterChoice ? state.clusterChoice : '';
         updateInfoFromSelection();
         restoreMapView(state && state.mapView);
+      },
+      getProjectTitle: function () {
+        return getSelectionProjectTitle(getSelectedFeatureCollection().features);
+      },
+      getProjectItemCount: function () {
+        return selectedCount();
       },
       validate: function () {
         const count = selectedCount();
@@ -156,6 +213,12 @@
         }
         updateInfoFromSelection();
         restoreMapView(state && state.mapView);
+      },
+      getProjectTitle: function () {
+        return getSelectionProjectTitle(getOfferteFeatures());
+      },
+      getProjectItemCount: function () {
+        return getOfferteFeatures().length;
       },
       validate: function () {
         const features = getOfferteFeatures();
@@ -373,6 +436,16 @@
         return georefState(false);
       },
       restoreState: restoreGeorefState,
+      getProjectTitle: function () {
+        const searched = (addressInputEl.value || '').trim();
+        if (searched) return searched;
+        const uploaded = (uploadedImageName || '').trim();
+        if (uploaded && uploaded !== 'georefereren') return uploaded.replace(/\.[^.]+$/, '');
+        return 'Georefereren';
+      },
+      getProjectItemCount: function () {
+        return serializeDrawings().features.length;
+      },
       validate: function () {
         const fc = getDrawnFeatureCollectionForExport();
         const errors = [];

@@ -1,15 +1,15 @@
-DE RENTMEESTER ASSISTENT
+DE RENTMEESTER ASSISTENT – RECENTE PROJECTEN
 
 Open landing.html om de website te starten.
 
-AANPASSINGEN IN DEZE VERSIE
-- Alleen het voortgangsstappenplan blijft boven iedere tool zichtbaar.
-- De volledige strook “Bewerkingen in deze sessie” is verwijderd.
-- Selecties, instellingen en kaartstatus worden niet automatisch opgeslagen.
-- Bij sluiten of vernieuwen van een tool begint u opnieuw.
-- De landingspagina toont alleen een korte geschiedenis van recent gebruikte tools.
-- De naam van een recent item bestaat uit datum en tijd.
-- Er zijn geen velden voor projectnaam of klantreferentie.
-- De aparte help-pagina en het uitgebreide stappenplan zijn verwijderd.
+Aangepast in deze versie:
+- Het voortgangsstappenplan blijft zichtbaar bovenaan de tools.
+- De strook “Bewerkingen in deze sessie” blijft volledig verwijderd.
+- Selecties, gesplitste percelen, kaartpositie en toolinstellingen worden op de achtergrond per recent project bewaard.
+- Bij het openen van een recent project wordt de eerder bewaarde situatie teruggezet, zonder herstelmelding.
+- Recente projecten kunnen vanaf de landingspagina definitief worden verwijderd.
+- Eén geselecteerd perceel krijgt de kadastrale perceelaanduiding als projectnaam.
+- Bij meerdere geselecteerde percelen wordt de projectnaam “Cluster (aantal)”.
+- Er staat nergens een melding of strook met “Automatisch opgeslagen”.
 
-Alle bestanden moeten samen in dezelfde map blijven staan.
+Laat alle HTML-, JavaScript-, CSS- en afbeeldingsbestanden bij elkaar in dezelfde map staan.
