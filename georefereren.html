@@ -1134,8 +1134,9 @@
     }
 
 </style>
+  <link rel="stylesheet" href="ux.css" />
 </head>
-<body>
+<body data-ra-tool="georefereren">
   <header class="topbar">
     <div class="topbar-inner header-inner">
       <a class="brand" href="landing.html" aria-label="Terug naar de landingspagina">
@@ -1280,14 +1281,14 @@
           <div class="info-box">
             <strong>Werkwijze</strong><br />
             Upload of sleep een afbeelding/PDF, kies 4 punten op de afbeelding en dezelfde 4 punten op de kaart.
-            Klik daarna op <strong>Georefereren</strong>. De overlay blijft staan, zodat je daarna een volgende afbeelding kunt toevoegen en erbovenop kunt georefereren. Teken vervolgens lijnen of polygonen en exporteer via <strong>RUN</strong>.
+            Klik daarna op <strong>Georefereren</strong>. De overlay blijft staan, zodat je daarna een volgende afbeelding kunt toevoegen en erbovenop kunt georefereren. Teken vervolgens lijnen of polygonen en exporteer via <strong>Controleer &amp; exporteer</strong>.
           </div>
 
           <div class="button-stack">
             <button id="georeferenceBtn" class="run-btn" type="button">Georefereren</button>
             <div class="button-row">
               <button id="downloadPngBtn" type="button" class="secondary-btn">Download PNG</button>
-              <button id="runBtn" class="run-btn" type="button">RUN</button>
+              <button id="runBtn" class="run-btn" type="button">Controleer &amp; exporteer</button>
             </div>
             <button id="resetAllBtn" type="button" class="reset-btn">Reset</button>
           </div>
@@ -1303,7 +1304,7 @@
         <div class="footer-text">Slimme ondersteuning voor georefereren, tekenen en exporteren.</div>
       </div>
       <div>
-        <a href="index.html" class="footer-link">Mapgenerator</a>
+        <a href="index.html" class="footer-link">Situatietekening / Factsheet</a>
         <a href="offerte.html" class="footer-link">Offerte</a>
         <a href="georefereren.html" class="footer-link">Georefereren</a>
       </div>
@@ -3119,5 +3120,7 @@
     updateAreaStats();
     refreshParcelLayer();
   </script>
+  <script src="ux-common.js"></script>
+  <script src="ux-pages.js"></script>
 </body>
 </html>

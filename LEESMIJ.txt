@@ -1,0 +1,15 @@
+DE RENTMEESTER ASSISTENT
+
+Open landing.html om de website te starten.
+
+AANPASSINGEN IN DEZE VERSIE
+- Alleen het voortgangsstappenplan blijft boven iedere tool zichtbaar.
+- De volledige strook “Bewerkingen in deze sessie” is verwijderd.
+- Selecties, instellingen en kaartstatus worden niet automatisch opgeslagen.
+- Bij sluiten of vernieuwen van een tool begint u opnieuw.
+- De landingspagina toont alleen een korte geschiedenis van recent gebruikte tools.
+- De naam van een recent item bestaat uit datum en tijd.
+- Er zijn geen velden voor projectnaam of klantreferentie.
+- De aparte help-pagina en het uitgebreide stappenplan zijn verwijderd.
+
+Alle bestanden moeten samen in dezelfde map blijven staan.

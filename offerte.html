@@ -1202,8 +1202,9 @@
     }
 
 </style>
+  <link rel="stylesheet" href="ux.css" />
 </head>
-<body>
+<body data-ra-tool="offerte">
   <header class="topbar">
     <div class="topbar-inner header-inner">
       <a class="brand" href="landing.html" aria-label="Terug naar de landingspagina">
@@ -1310,7 +1311,7 @@
               </div>
 
               <div class="run-row">
-                <button id="runBtn" class="run-btn">RUN</button>
+                <button id="runBtn" class="run-btn">Controleer &amp; exporteer</button>
               </div>
             </div>
           </div>
@@ -1329,7 +1330,7 @@
       </div>
 
       <div>
-        <a href="index.html" class="footer-link">Mapgenerator</a>
+        <a href="index.html" class="footer-link">Situatietekening / Factsheet</a>
         <a href="offerte.html" class="footer-link">Offerte</a>
         <a href="georefereren.html" class="footer-link">Georefereren</a>
       </div>
@@ -3129,5 +3130,7 @@
       downloadCurrentGeojson();
     });
   </script>
+  <script src="ux-common.js"></script>
+  <script src="ux-pages.js"></script>
 </body>
 </html>

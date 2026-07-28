@@ -297,8 +297,9 @@
   
 
   </style>
+  <link rel="stylesheet" href="ux.css" />
 </head>
-<body>
+<body data-ra-tool="landing">
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="landing.html" aria-label="Terug naar de landingspagina">
@@ -316,7 +317,7 @@
     </section>
 
     <section class="tools" aria-label="Beschikbare tools">
-      <a class="tool" href="index.html">
+      <a class="tool" href="index.html" data-tool-key="situatietekening">
         <div>
           <div class="tool-icon" aria-hidden="true">
             <svg viewBox="0 0 64 64" focusable="false">
@@ -330,7 +331,7 @@
       </a>
 
 
-      <a class="tool" href="offerte.html">
+      <a class="tool" href="offerte.html" data-tool-key="offerte">
         <div>
           <div class="tool-icon" aria-hidden="true">
             <svg viewBox="0 0 64 64" focusable="false">
@@ -348,7 +349,7 @@
         </div>
       </a>
 
-      <a class="tool" href="georefereren.html">
+      <a class="tool" href="georefereren.html" data-tool-key="georefereren">
         <div>
           <div class="tool-icon" aria-hidden="true">
             <svg viewBox="0 0 64 64" focusable="false">
@@ -364,6 +365,16 @@
         </div>
       </a>
     </section>
+
+    <section class="ux-recent-section" aria-labelledby="uxRecentTitle">
+      <div class="ux-recent-head">
+        <div>
+          <h2 id="uxRecentTitle">Recente projecten</h2>
+          <p>Bekijk welke tools u recent heeft gebruikt. Selecties en instellingen worden niet bewaard.</p>
+        </div>
+      </div>
+      <div class="ux-recent-grid" id="uxRecentProjects"></div>
+    </section>
   </main>
 
   <footer>
@@ -372,5 +383,7 @@
       <span>Kaarttools voor dagelijks gebruik</span>
     </div>
   </footer>
+  <script src="ux-common.js"></script>
+  <script src="ux-pages.js"></script>
 </body>
 </html>
