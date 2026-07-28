@@ -444,7 +444,10 @@
         return 'Georefereren';
       },
       getProjectItemCount: function () {
-        return serializeDrawings().features.length;
+        return serializeDrawings().features.length + overlayImages.length;
+      },
+      hasProjectContent: function () {
+        return !!uploadedImageUrl || overlayImages.length > 0 || serializeDrawings().features.length > 0;
       },
       validate: function () {
         const fc = getDrawnFeatureCollectionForExport();

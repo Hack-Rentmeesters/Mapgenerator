@@ -104,21 +104,19 @@
   function getCurrentProject(toolKey) {
     const projects = readProjects();
     const currentId = localStorage.getItem(CURRENT_PROJECT_KEY);
-    let project = projects.find(item => item.id === currentId);
+    const project = projects.find(item => item.id === currentId) || null;
 
-    if (!project) {
-      return createProject({ toolKey: toolKey || 'situatietekening' });
+    // Een project hoort bij één tool. Een gewone toolwissel start daarom leeg.
+    if (project && toolKey && project.lastTool !== toolKey) {
+      localStorage.removeItem(CURRENT_PROJECT_KEY);
+      return null;
     }
 
-    if (toolKey && project.lastTool !== toolKey) {
-      project = {
-        ...project,
-        lastTool: toolKey,
-        modifiedAt: nowIso()
-      };
-      writeProjects([project, ...projects.filter(item => item.id !== project.id)]);
-    }
     return project;
+  }
+
+  function clearCurrentProject() {
+    localStorage.removeItem(CURRENT_PROJECT_KEY);
   }
 
   function updateProject(projectId, patch) {
@@ -261,6 +259,47 @@
     );
 
     return true;
+  }
+
+  function stateHasProjectContent(project, state) {
+    if (!project || !state) return false;
+
+    if (project.lastTool === 'situatietekening' || project.lastTool === 'offerte') {
+      return !!(
+        state.geojson &&
+        Array.isArray(state.geojson.features) &&
+        state.geojson.features.length
+      );
+    }
+
+    if (project.lastTool === 'georefereren') {
+      const drawings = state.drawings && Array.isArray(state.drawings.features)
+        ? state.drawings.features.length
+        : 0;
+      const overlays = Array.isArray(state.overlays) ? state.overlays.length : 0;
+      const imageUrl = state.currentImage && state.currentImage.url;
+      return drawings > 0 || overlays > 0 || !!imageUrl;
+    }
+
+    return Number(project.itemCount || 0) > 0;
+  }
+
+  function ensureProjectForContext(context) {
+    if (context.project) return context.project;
+
+    const project = createProject({ toolKey: context.config.toolKey });
+    context.project = project;
+    context.storageKey = `${project.id}:${context.config.toolKey}`;
+    return project;
+  }
+
+  async function discardEmptyContextProject(context) {
+    if (!context || !context.project) return;
+    const projectId = context.project.id;
+    await deleteProject(projectId);
+    context.project = null;
+    context.storageKey = null;
+    context.lastHash = '';
   }
 
   function ensureToastRoot() {
@@ -476,6 +515,24 @@
     context.captureBusy = true;
     context.capturePromise = (async () => {
       try {
+        let itemCount = 0;
+        if (typeof context.config.adapter.getProjectItemCount === 'function') {
+          itemCount = Number(context.config.adapter.getProjectItemCount()) || 0;
+        }
+
+        const hasProjectContent = typeof context.config.adapter.hasProjectContent === 'function'
+          ? !!context.config.adapter.hasProjectContent()
+          : itemCount > 0;
+
+        // Zolang er niets is geselecteerd of gemaakt, ontstaat er geen recent project.
+        if (!hasProjectContent) {
+          if (context.project) await discardEmptyContextProject(context);
+          updateStepper(context);
+          return;
+        }
+
+        ensureProjectForContext(context);
+
         const hashSource = context.config.adapter.getStateHash
           ? context.config.adapter.getStateHash()
           : context.config.adapter.getState();
@@ -491,13 +548,8 @@
         context.lastHash = hash;
 
         let title = context.project.title;
-        let itemCount = context.project.itemCount || 0;
-
         if (typeof context.config.adapter.getProjectTitle === 'function') {
           title = context.config.adapter.getProjectTitle() || title;
-        }
-        if (typeof context.config.adapter.getProjectItemCount === 'function') {
-          itemCount = Number(context.config.adapter.getProjectItemCount()) || 0;
         }
 
         context.project = updateProject(context.project.id, {
@@ -604,6 +656,16 @@
     }
   }
 
+  function toolKeyFromUrl(href) {
+    try {
+      const path = new URL(href, window.location.href).pathname.toLowerCase();
+      if (path.endsWith('/index.html') || path.endsWith('index.html')) return 'situatietekening';
+      if (path.endsWith('/offerte.html') || path.endsWith('offerte.html')) return 'offerte';
+      if (path.endsWith('/georefereren.html') || path.endsWith('georefereren.html')) return 'georefereren';
+    } catch (err) {}
+    return null;
+  }
+
   function bindInternalNavigation(context) {
     document.addEventListener('click', async event => {
       if (context.navigating || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -613,6 +675,12 @@
       event.preventDefault();
       context.navigating = true;
       await captureState(context, true);
+
+      const destinationTool = toolKeyFromUrl(link.href);
+      if (!destinationTool || destinationTool !== context.config.toolKey) {
+        clearCurrentProject();
+      }
+
       window.location.href = link.href;
     }, true);
   }
@@ -629,7 +697,7 @@
       shell,
       runButton,
       validationPanel: createValidationPanel(runButton),
-      storageKey: `${project.id}:${config.toolKey}`,
+      storageKey: project ? `${project.id}:${config.toolKey}` : null,
       lastHash: '',
       applyingState: false,
       captureBusy: false,
@@ -655,7 +723,7 @@
       }, true);
     }
 
-    const saved = await dbGet(context.storageKey);
+    const saved = context.storageKey ? await dbGet(context.storageKey) : null;
     if (saved) {
       try {
         context.applyingState = true;
@@ -674,7 +742,7 @@
     context.lastHash = stableStringify(initialHashSource);
     updateStepper(context);
 
-    await captureState(context, true);
+    // Een leeg geopende tool wordt niet als project opgeslagen.
 
     const scheduleCapture = () => {
       clearTimeout(context.debounceTimer);
@@ -759,21 +827,36 @@
     const container = document.getElementById('uxRecentProjects');
     if (!container) return;
 
-    const projects = readProjects().slice(0, 6);
+    const projects = readProjects();
     if (!projects.length) {
-      container.innerHTML = '<div class="ux-empty-recent">Nog geen recente projecten. Open een tool en selecteer een perceel.</div>';
+      container.innerHTML = '<div class="ux-empty-recent">Nog geen recente projecten. Open een tool en maak een selectie.</div>';
       return;
     }
 
     container.innerHTML = '<div class="ux-empty-recent">Recente projecten laden…</div>';
 
-    const displayProjects = await Promise.all(projects.map(async project => {
+    const loadedProjects = await Promise.all(projects.map(async project => {
       const state = await dbGet(`${project.id}:${project.lastTool}`);
       return {
         ...project,
+        state,
         displayTitle: deriveProjectTitle(project, state)
       };
     }));
+
+    const emptyProjects = loadedProjects.filter(project => !stateHasProjectContent(project, project.state));
+    if (emptyProjects.length) {
+      await Promise.all(emptyProjects.map(project => deleteProject(project.id)));
+    }
+
+    const displayProjects = loadedProjects
+      .filter(project => stateHasProjectContent(project, project.state))
+      .slice(0, 6);
+
+    if (!displayProjects.length) {
+      container.innerHTML = '<div class="ux-empty-recent">Nog geen recente projecten. Open een tool en maak een selectie.</div>';
+      return;
+    }
 
     const allProjects = readProjects();
     let metadataChanged = false;
@@ -811,7 +894,6 @@
       });
     });
 
-
     container.querySelectorAll('[data-delete-project]').forEach(button => {
       button.addEventListener('click', async () => {
         const projectId = button.dataset.deleteProject;
@@ -837,17 +919,13 @@
 
   function initLanding() {
     ensureToastRoot();
+    clearCurrentProject();
+
     window.alert = function (message) {
       notify(String(message || ''), inferToastType(message));
     };
 
     renderRecentProjects();
-
-    document.querySelectorAll('a.tool[data-tool-key]').forEach(link => {
-      link.addEventListener('click', () => {
-        createProject({ toolKey: link.dataset.toolKey });
-      });
-    });
   }
 
   window.RAUX = {
@@ -858,6 +936,7 @@
     createProject,
     updateProject,
     setCurrentProject,
+    clearCurrentProject,
     deleteProject,
     renderRecentProjects,
     escapeHtml,
